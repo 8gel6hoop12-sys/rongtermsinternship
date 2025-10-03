@@ -1,31 +1,35 @@
 /* ========= 設定 ========= */
-// GAS WebアプリURL（/exec）に差し替え
+// ★ ここをあなたのGAS WebアプリURL（/exec）に差し替え
 const SHEETS_ENDPOINT = "PUT_YOUR_GAS_WEBAPP_URL_HERE";
-const SHEETS_TOKEN = ""; // 任意：GASの EXPECT と一致させると簡易認証
+const SHEETS_TOKEN = ""; // 任意の共有シークレット（GAS側 EXPECT と合わせる）
 const SYNC_ENABLED = true;
 const SYNC_DEBOUNCE_MS = 1200;
 
-// Google（Firebase：未設定でもOK）
+// Google（Firebase：未設定でもOK）※入れればGoogleログインが動作
 const ENABLE_GOOGLE = true;
 const firebaseConfig = { apiKey:"", authDomain:"", projectId:"", appId:"" };
 
-// LINE（LIFF：未設定でもOK）
+// LINE（LIFF：未設定でもOK）※入れればLINEログインが動作
 const ENABLE_LINE = true;
 const LIFF_ID = "";
 
-/* ========= マスタ/ダミー ========= */
+/* ========= マスタ/ダミー（画像付き） ========= */
 const LS = {
   favs:'ut_favs', apps:'ut_apps', user:'ut_user', users:'ut_users',
   events:'ut_events', guest:'ut_guest', pvs:'ut_pvs', accounts:'ut_accounts',
-  employers:'ut_employers', seenPop:'ut_seen_pop'
+  employers:'ut_employers', drafts:'ut_job_drafts', seenPop:'ut_seen_pop'
 };
 
+// id, title, company, location, category, desc, wage, days, flags[], open, intern, created, jobType, pref, city, img
 const JOBS = [
- [1,'バックエンド開発（Go/GCP）','Alpha','渋谷','エンジニア','API実装/ログ基盤',2500,3,['フル/一部リモート','フレックス','英語力'],true,12,'2025-09-25','regular','東京都','渋谷区'],
- [2,'グロースマーケ補佐（SNS/広告）','Beta','五反田','マーケ','SNS運用/ABテスト',2000,2,['フレックス','ベンチャー'],true,3,'2025-09-20','regular','東京都','品川区'],
- [12,'学習塾講師アシ','Edu Star','高円寺','事務・アシスタント','採点/質問対応',1600,2,['未経験OK','土日可'],true,11,'2025-09-08','education','東京都','杉並区'],
+ [1,'バックエンド開発（Go/GCP）','Alpha','渋谷','エンジニア','API実装/ログ基盤',2500,3,['フル/一部リモート','フレックス','英語力'],true,12,'2025-09-25','regular','東京都','渋谷区','https://picsum.photos/seed/alpha/800/450'],
+ [2,'グロースマーケ補佐（SNS/広告）','Beta','五反田','マーケ','SNS運用/ABテスト',2000,2,['フレックス','ベンチャー'],true,3,'2025-09-20','regular','東京都','品川区','https://picsum.photos/seed/beta/800/450'],
+ [12,'学習塾講師アシ','Edu Star','高円寺','事務・アシスタント','採点/質問対応',1600,2,['未経験OK','土日可'],true,11,'2025-09-08','education','東京都','杉並区','https://picsum.photos/seed/edustar/800/450'],
 ];
-const JOBS_OBJ = JOBS.map(r=>({id:r[0],title:r[1],company:r[2],location:r[3],category:r[4],desc:r[5],wage:r[6],days:r[7],flags:r[8],open:r[9],intern:r[10],created:r[11],jobType:r[12],prefecture:r[13],city:r[14]}));
+const JOBS_OBJ = JOBS.map(r=>({
+  id:r[0],title:r[1],company:r[2],location:r[3],category:r[4],desc:r[5],wage:r[6],days:r[7],
+  flags:r[8],open:r[9],intern:r[10],created:r[11],jobType:r[12],prefecture:r[13],city:r[14],img:r[15]
+}));
 
 const CATEGORIES=['マーケ','エンジニア','コンサル','経営・企画','営業','金融','メディア','経理','人事・広報','デザイナー','事務・アシスタント','その他'];
 const FLAGS=['服装髪型自由','交通費支給','未経験OK','フル/一部リモート','フレックス','土日可','英語力','大手','ベンチャー','起業家/外銀/戦コン/総合商社/GAFA内定者を輩出'];
@@ -41,27 +45,16 @@ const esc=(s)=>String(s).replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&g
 const nowISO=()=>new Date().toISOString();
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const fmtDate=(s)=>{const d=new Date(s);return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;};
-const getJSON=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}};
-const setJSON=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+const getJSON=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}; const setJSON=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 
-/* ========= local保存 + 同期 ========= */
-const getFavs = ()=> new Set(getJSON(LS.favs,'[]'));
-const setFavs = (s)=> setJSON(LS.favs,[...s]);
-
-const getApps = ()=> getJSON(LS.apps,[]);
-const setApps = (a)=>{ setJSON(LS.apps,a); scheduleSync('applications'); };
-
-const getUsers = ()=> getJSON(LS.users,[]);
-const setUsers = (a)=>{ setJSON(LS.users,a); scheduleSync('users'); };
-
-const getEvents = ()=> getJSON(LS.events,[]);
-const setEvents = (a)=>{ setJSON(LS.events,a); scheduleSync('events'); };
-
-const getEmployers = ()=> getJSON(LS.employers,[]);
-const setEmployers = (a)=>{ setJSON(LS.employers,a); scheduleSync('employers'); };
-
-const getPVs = ()=> getJSON(LS.pvs,[]);
-const setPVs = (a)=> setJSON(LS.pvs,a);
+/* ========= local保存 + 同期（Sheets） ========= */
+const getFavs = ()=> new Set(getJSON(LS.favs,'[]'));  const setFavs = (s)=> setJSON(LS.favs,[...s]);
+const getApps = ()=> getJSON(LS.apps,[]);             const setApps = (a)=>{ setJSON(LS.apps,a); scheduleSync('applications'); };
+const getUsers = ()=> getJSON(LS.users,[]);           const setUsers = (a)=>{ setJSON(LS.users,a); scheduleSync('users'); };
+const getEvents = ()=> getJSON(LS.events,[]);         const setEvents = (a)=>{ setJSON(LS.events,a); scheduleSync('events'); };
+const getEmployers = ()=> getJSON(LS.employers,[]);   const setEmployers = (a)=>{ setJSON(LS.employers,a); scheduleSync('employers'); };
+const getDrafts = ()=> getJSON(LS.drafts,[]);         const setDrafts = (a)=> setJSON(LS.drafts,a);
+const getPVs = ()=> getJSON(LS.pvs,[]);               const setPVs = (a)=> setJSON(LS.pvs,a);
 
 let syncTimer=null, pendingKinds=new Set();
 function scheduleSync(kind){
@@ -85,7 +78,7 @@ async function runSync(){
       id:e.id, ts:e.ts, type:e.type, userId:e.userId, email:e.email||"", page:e.page||"", jobId:e.jobId||""
     }));
     else if(k==='applications') rows=getApps().map(a=>({
-      id:a.id, ts:a.ts, userId:a.userId, email:a.email||"", name:a.name||"", jobId:a.jobId, message:a.message||""
+      id:a.id, ts:a.ts, userId:a.userId, email:a.email||"", name:a.name||"", jobId:a.jobId, message:a.message||"", status:a.status||"pending"
     }));
     else if(k==='employers') rows=getEmployers().map(x=>({
       id:x.id, ts:x.ts, company:x.company, pic:x.pic, email:x.email, tel:x.tel,
@@ -106,11 +99,7 @@ function currentUser(){
   if(!gid){ gid='guest_'+uid(); localStorage.setItem(LS.guest,gid); }
   return { id:gid, guest:true, email:null, name:null, provider:null, avatar:null };
 }
-function logEvent(type, payload={}){
-  const u=currentUser();
-  const ev=getEvents(); ev.push({ id:uid(), ts:nowISO(), type, userId:u.id, email:u.email||null, ...payload });
-  setEvents(ev);
-}
+function logEvent(type, payload={}){ const u=currentUser(); const ev=getEvents(); ev.push({ id:uid(), ts:nowISO(), type, userId:u.id, email:u.email||null, ...payload }); setEvents(ev); }
 function addPV(jobId){ const p=getPVs(); p.push({id:uid(),jobId,ts:nowISO()}); setPVs(p); }
 
 /* ========= 初回ポップ ========= */
@@ -119,7 +108,7 @@ function showFirstVisitPop(){
   showModal(`
     <div style="text-align:center">
       <h3>ようこそ！</h3>
-      <p class="meta">UT-Board 風デモへ。ログインすると応募や履歴の保存ができます。</p>
+      <p class="meta">ログインすると応募や履歴の保存ができます。</p>
       <div class="row" style="justify-content:center;margin-top:10px">
         <button type="button" class="btn primary" data-route="account" id="popGoSignup">新規登録/ログイン</button>
         <button type="button" class="btn" id="popSeeJobs">まずは求人を見る</button>
@@ -132,7 +121,7 @@ function showFirstVisitPop(){
   setJSON(LS.seenPop,true);
 }
 
-/* ========= 認証UI ========= */
+/* ========= 認証UI（Google/LINE/メール） ========= */
 const loginState=$('#loginState'), btnLogin=$('#btnLogin'), btnLogout=$('#btnLogout'), btnSignup=$('#btnSignup');
 function bindAuthButtons(){
   if(!btnLogin || !btnSignup || !btnLogout) return;
@@ -145,23 +134,18 @@ function refreshLogin(){
   if(u){ loginState.innerHTML=`ログイン中：<b>${esc(u.name||u.email||u.id)}</b>`; btnLogout.style.display='inline-block'; }
   else { loginState.textContent='未ログイン'; btnLogout.style.display='none'; }
 }
-
-/* —— ログインカード（Google/LINE/メール） —— */
 function openLoginCard(title){
   showModal(`
     <div class="login-card">
       <div class="login-title">${esc(title)}</div>
       <div class="login-sep"></div>
-
       <button type="button" id="btnGoogleLogin" class="login-btn" style="margin-bottom:10px">🔵 Login with Google</button>
       <button type="button" id="btnLineLogin" class="login-btn" style="margin-bottom:18px">🟢 Login with LINE</button>
-
       <div class="panel">
         <label>メールアドレス<input id="lemail" class="input" type="email" placeholder="you@example.com"/></label>
         <label>パスワード<input id="lpass" class="input" type="password" placeholder="********"/></label>
         <button type="button" id="btnEmailLogin" class="login-btn primary" style="margin-top:8px">Log in</button>
       </div>
-
       <p class="login-note">アカウントをお持ちでない方：<a href="javascript:void(0)" id="linkSignup">登録はこちら</a>／
       パスワードを忘れた方：<a href="javascript:void(0)" id="linkReset">こちら</a></p>
     </div>
@@ -170,14 +154,12 @@ function openLoginCard(title){
     $('#btnLineLogin').onclick=()=>{ if(!ENABLE_LINE||!LIFF_ID||!window.liff){ toast('LINE設定が未完了'); return; } lineLogin(); };
     $('#btnEmailLogin').onclick=()=>{
       const email=$('#lemail').value.trim(); const pass=$('#lpass').value;
-      if(!email||!pass) return toast('メール/パスを入力');
-      emailPassLogin(email,pass);
+      if(!email||!pass) return toast('メール/パスを入力'); emailPassLogin(email,pass);
     };
     $('#linkSignup').onclick=()=>{ closeModal(); openSignup(); };
     $('#linkReset').onclick=()=> openReset();
   });
 }
-
 function openSignup(){
   showModal(`
     <div class="login-card">
@@ -191,8 +173,7 @@ function openSignup(){
   `, ()=>{
     $('#btnDoSignup').onclick=()=>{
       const email=$('#semail').value.trim(); const pass=$('#spass').value;
-      if(!email||!pass) return toast('メール/パスを入力');
-      emailPassLogin(email,pass);
+      if(!email||!pass) return toast('メール/パスを入力'); emailPassLogin(email,pass);
     };
   });
 }
@@ -207,8 +188,6 @@ function openReset(){
     </div>
   `, ()=>{ $('#sendReset').onclick=()=>{ if(!$('#remail').value) return toast('メールを入力'); toast('送信しました（デモ）'); closeModal(); }; });
 }
-
-/* —— 実処理：メール/Google/LINE —— */
 function emailPassLogin(email, pass){
   const h=t=>btoa(unescape(encodeURIComponent(t))).slice(0,24);
   const accounts=getJSON(LS.accounts,[]);
@@ -242,8 +221,6 @@ async function lineLogin(){
     closeModal(); toast('LINEでログイン');
   }catch(e){ console.error(e); toast('LINEログイン失敗'); }
 }
-
-/* —— 共通：ログイン確定/移行/同期 —— */
 function commitLogin({provider,externalId,email,name,avatar}){
   const prev=currentUser();
   const users=getUsers();
@@ -259,6 +236,7 @@ function commitLogin({provider,externalId,email,name,avatar}){
   setUsers(users);
   setJSON(LS.user,{ id:user.id,email:user.email,name:user.name,provider:user.provider,avatar:user.avatar });
 
+  // ゲストの応募/イベントを移行
   if(prev.guest){
     setApps(getApps().map(a=>a.userId===prev.id?{...a,userId:user.id,email:user.email,name:user.name||''}:a));
     setEvents(getEvents().map(e=>e.userId===prev.id?{...e,userId:user.id,email:user.email}:e));
@@ -274,19 +252,41 @@ function logout(){
   localStorage.removeItem(LS.user); refreshLogin(); toast('ログアウトしました');
 }
 
-/* ========= 右上メニュー ========= */
+/* ========= 右上メニュー（確実タップ） ========= */
 function bindMenu(){
-  const menuBtn = document.getElementById('menuBtn');
-  const menuPanel = document.getElementById('menuPanel');
-  if(menuBtn && menuPanel){
-    menuBtn.onclick = ()=> menuPanel.classList.toggle('on');
-    document.addEventListener('click', (e)=>{
-      if(!menuPanel.contains(e.target) && e.target!==menuBtn) menuPanel.classList.remove('on');
-    });
-    menuPanel.querySelectorAll('[data-route]').forEach(a=>{
-      a.onclick=()=>{ menuPanel.classList.remove('on'); goto(a.dataset.route); };
-    });
-  }
+  const menu   = document.querySelector('.menu');
+  const btn    = document.getElementById('menuBtn');
+  const panel  = document.getElementById('menuPanel');
+  if(!menu || !btn || !panel) return;
+  let backdrop = null;
+
+  const open = ()=>{
+    if(menu.classList.contains('open')) return;
+    menu.classList.add('open'); btn.setAttribute('aria-expanded','true');
+    backdrop = document.createElement('button');
+    backdrop.type='button'; Object.assign(backdrop.style,{position:'fixed',inset:'0',zIndex:'998',background:'transparent',border:'none'});
+    const closeByBg = (e)=>{ e.preventDefault(); close(); };
+    backdrop.addEventListener('click', closeByBg, {passive:false});
+    backdrop.addEventListener('touchend', closeByBg, {passive:false});
+    backdrop.addEventListener('pointerup', closeByBg, {passive:false});
+    document.body.appendChild(backdrop);
+  };
+  const close = ()=>{
+    menu.classList.remove('open'); btn.setAttribute('aria-expanded','false');
+    if(backdrop){ backdrop.remove(); backdrop=null; }
+  };
+  const toggle=(e)=>{ e.preventDefault(); e.stopPropagation(); menu.classList.contains('open')?close():open(); };
+  ['click','touchend','pointerup'].forEach(ev => btn.addEventListener(ev, toggle));
+  btn.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(e);} });
+
+  panel.querySelectorAll('[data-route]').forEach(el=>{
+    const go=()=>{ goto(el.dataset.route); close(); setTimeout(()=>window.scrollTo(0,0),0); };
+    ['click','touchend','pointerup'].forEach(ev=> el.addEventListener(ev,(e)=>{ e.preventDefault(); e.stopPropagation(); go(); }));
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); }});
+  });
+
+  window.addEventListener('resize', close);
+  window.addEventListener('scroll', ()=>{ if(menu.classList.contains('open')) close(); }, {passive:true});
 }
 
 /* ========= グローバル・クリック委譲 ========= */
@@ -294,38 +294,11 @@ function bindGlobalClickRouter(){
   document.addEventListener('click', (e)=>{
     const t = e.target;
 
-    // モーダル閉じる
     if (t.id === 'modalClose' || t.closest('#modalClose')) { e.preventDefault(); closeModal(); return; }
 
-    // 右上メニュー開閉
-    if (t.id === 'menuBtn' || t.closest('#menuBtn')) {
-      e.preventDefault();
-      const panel = document.getElementById('menuPanel');
-      panel?.classList.toggle('on');
-      return;
-    }
-    // メニュー内リンク
-    const menuLink = t.closest('#menuPanel [data-route]');
-    if (menuLink) {
-      e.preventDefault();
-      document.getElementById('menuPanel')?.classList.remove('on');
-      goto(menuLink.dataset.route);
-      return;
-    }
-    // メニュー外クリックで閉じる
-    const menuPanel = document.getElementById('menuPanel');
-    const menuBtn  = document.getElementById('menuBtn');
-    if (menuPanel && menuPanel.classList.contains('on')) {
-      if (!menuPanel.contains(t) && t !== menuBtn) menuPanel.classList.remove('on');
-    }
-
-    // ルーティング（上部ナビなど data-route）
+    // ルーティング（ヘッダナビ）
     const routeEl = t.closest('[data-route]');
-    if (routeEl && !t.closest('#menuPanel')) {
-      e.preventDefault();
-      goto(routeEl.dataset.route);
-      return;
-    }
+    if (routeEl && !t.closest('#menuPanel')) { e.preventDefault(); goto(routeEl.dataset.route); return; }
 
     // 求人カードの操作
     const favEl   = t.closest('[data-fav]');
@@ -335,13 +308,10 @@ function bindGlobalClickRouter(){
     if (applyEl) { e.preventDefault(); openApply(+applyEl.dataset.apply); return; }
     if (detEl)   { e.preventDefault(); openDetail(+detEl.dataset.detail); return; }
 
-    // 絞り込みチップ（職種/特徴）
+    // 絞り込みチップ
     const chipEl = t.closest('.chip');
     if (chipEl && (chipEl.parentElement?.id === 'catBox' || chipEl.parentElement?.id === 'flagsBox' || chipEl.id === 'eopen')) {
-      e.preventDefault();
-      chipEl.classList.toggle('on');
-      render(1);
-      return;
+      e.preventDefault(); chipEl.classList.toggle('on'); render(1); return;
     }
 
     // 条件リセット
@@ -360,15 +330,15 @@ function bindGlobalClickRouter(){
   }, { passive:false });
 }
 
-/* ========= ルーティング/一覧 ========= */
+/* ========= ルーティング ========= */
 const views={};
 function setupRouting(){
   Object.assign(views,{
     jobs:$('#view-jobs'),map:$('#view-map'),ranking:$('#view-ranking'),articles:$('#view-articles'),
     education:$('#view-education'),employers:$('#view-employers'),legal:$('#view-legal'),
-    privacy:$('#view-privacy'),company:$('#view-company'),account:$('#view-account')
+    privacy:$('#view-privacy'),company:$('#view-company'),account:$('#view-account'),admin:$('#view-admin')
   });
-  document.querySelectorAll('.navbtn').forEach(b=> b.onclick=()=>goto(b.dataset.route)); // 併用OK
+  document.querySelectorAll('.navbtn').forEach(b=> b.onclick=()=>goto(b.dataset.route));
 }
 function goto(route){
   Object.entries(views).forEach(([k,el])=> el&&(el.style.display=k===route?'block':'none'));
@@ -379,10 +349,11 @@ function goto(route){
   if(route==='articles') renderArticles();
   if(route==='education') mountEducation();
   if(route==='employers') initEmployerForm();
+  if(route==='admin') renderAdmin();
   logEvent('view',{page:route});
 }
 
-/* ========= 求人一覧UI ========= */
+/* ========= 求人一覧 / フィルタ / ページング ========= */
 let curPage=1;
 function mountFilters(){
   const catBox=$('#catBox'), flagsBox=$('#flagsBox');
@@ -390,21 +361,9 @@ function mountFilters(){
   if(flagsBox) FLAGS.forEach(f=>{ const b=chip(f); b.onclick=()=>{b.classList.toggle('on'); render(1)}; flagsBox.appendChild(b); });
 
   const q=$('#q'), sortSel=$('#sort'), minWage=$('#minWage'), minDays=$('#minDays');
-  const pageSizeSel=$('#pageSize'), resetBtn=$('#reset'), fOpen=$('#f-open'), favOnly=$('#favOnly');
+  const pageSizeSel=$('#pageSize'), fOpen=$('#f-open'), favOnly=$('#favOnly');
   const fI3=$('#intern3'), fI10=$('#intern10'), fI20=$('#intern20');
-
-  [q,sortSel,minWage,minDays,pageSizeSel,fOpen,favOnly,fI3,fI10,fI20]
-    .forEach(el=> el&&el.addEventListener('input',()=>render(1)));
-
-  if(resetBtn){
-    resetBtn.onclick=()=>{
-      if(q) q.value=''; if(sortSel) sortSel.value='new'; if(minWage) minWage.value='0'; if(minDays) minDays.value='2';
-      if(pageSizeSel) pageSizeSel.value='10'; if(fOpen) fOpen.checked=true; if(favOnly) favOnly.checked=false;
-      [fI3,fI10,fI20].forEach(x=>x&&(x.checked=false));
-      [...(catBox?.children||[]), ...(flagsBox?.children||[])].forEach(b=>b.classList.remove('on'));
-      render(1);
-    };
-  }
+  [q,sortSel,minWage,minDays,pageSizeSel,fOpen,favOnly,fI3,fI10,fI20].forEach(el=> el&&el.addEventListener('input',()=>render(1)));
 }
 function chip(t){ const b=document.createElement('button'); b.type='button'; b.className='chip'; b.textContent=t; b.dataset.val=t; return b; }
 function getFilters(){
@@ -457,17 +416,21 @@ function render(page){
   const f=getFilters();
   const filtered=applyFilters(JOBS_OBJ.filter(j=>j.jobType!=='education'),f);
   const {slice,total,pages,cur}=paginate(filtered,curPage,f.pageSize);
-  $('#stat').textContent=`${total}件中 ${slice.length?((cur-1)*f.pageSize+1)+'〜'+((cur-1)*f.pageSize+slice.length):'0'} を表示（${pages}ページ）`;
+  $('#stat').textContent=`${total}件中 ${slice.length?((cur-1)*f.pageSize+1)+'〜'+((cur-1)*f.pageSize+slice.length):'0'} を表示（全${pages}ページ）`;
+
   const favs=getFavs(); const cards=$('#cards'); cards.innerHTML='';
   slice.forEach(j=>{
     const d=document.createElement('div'); d.className='panel card '+(j.open?'':'closed');
     d.innerHTML=`
-      <div>
-        <div>${j.open?'<span class="badge">募集中</span>':'<span class="badge" style="background:#ffe7e7;border-color:#ffd6d6">募集停止</span>'}
-          ${j.flags.map(t=>`<span class="badge">${esc(t)}</span>`).join('')}
+      <div class="grid gap-2">
+        <div class="thumb">${j.img ? `<img src="${esc(j.img)}" alt="">` : ''}</div>
+        <div>
+          <div>${j.open?'<span class="badge">募集中</span>':'<span class="badge" style="background:#ffe7e7;border-color:#ffd6d6">募集停止</span>'}
+            ${j.flags.map(t=>`<span class="badge">${esc(t)}</span>`).join('')}
+          </div>
+          <h3 class="mt-1 font-semibold">${esc(j.title)}</h3>
+          <div class="dim">${esc(j.company)}・${esc(j.location)}｜時給${j.wage}円｜週${j.days}〜｜在籍${j.intern}｜${fmtDate(j.created)}</div>
         </div>
-        <h3 style="margin:6px 0">${esc(j.title)}</h3>
-        <div class="dim">${esc(j.company)}・${esc(j.location)}｜時給${j.wage}円｜週${j.days}〜｜在籍${j.intern}｜${fmtDate(j.created)}</div>
       </div>
       <div class="row right">
         <button type="button" class="btn" data-detail="${j.id}">詳細</button>
@@ -476,6 +439,7 @@ function render(page){
       </div>`;
     cards.appendChild(d);
   });
+
   // pager
   const pager=$('#pager'); pager.innerHTML='';
   const add=(lab,to,dis,act)=>{ const b=document.createElement('button'); b.type='button'; b.className='pagebtn'; if(act) b.style.background='linear-gradient(135deg,#cfe0ff,#e8f0ff)'; b.textContent=lab; b.disabled=dis; b.onclick=()=>render(to); pager.appendChild(b); };
@@ -492,7 +456,7 @@ function renderRegion(){
   const box=$('#mapLinks'); if(!box) return; box.innerHTML='';
   Object.entries(REGION).forEach(([pref,cities])=>{
     const wrap=document.createElement('div'); wrap.className='mapbox';
-    wrap.innerHTML=`<h3>${pref}</h3><div class="meta">区市をクリックで一覧に適用</div><div class="links"></div>`;
+    wrap.innerHTML=`<h3 class="font-semibold">${pref}</h3><div class="meta">区市をクリックで一覧に適用</div><div class="links"></div>`;
     const ln=wrap.querySelector('.links');
     const link=(label,pref,city)=>{ const a=document.createElement('a'); a.href="javascript:void(0)"; a.textContent=label; a.onclick=()=>{ $('#q').value=city?`${pref} ${city}`:pref; goto('jobs'); render(1); }; return a; };
     ln.appendChild(link('全域',pref,null)); cities.forEach(c=> ln.appendChild(link(c,pref,c)));
@@ -501,7 +465,7 @@ function renderRegion(){
 }
 function renderRanking(){
   const favs=getFavs(), apps=getApps(), pvs=getPVs();
-  const score=(id)=> apps.filter(a=>a.jobId===id).length*2 + (favs.has(id)?1:0) + pvs.filter(p=>p.jobId===id).length*0.2;
+  const score=(id)=> apps.filter(a=>a.jobId===id && (a.status!=='rejected')).length*2 + (favs.has(id)?1:0) + pvs.filter(p=>p.jobId===id).length*0.2;
   const rows = JOBS_OBJ.map(j=>({j,score:score(j.id)}))
     .sort((a,b)=> b.score - a.score || b.j.intern - a.j.intern || +new Date(b.j.created)-+new Date(a.j.created))
     .slice(0,20);
@@ -512,7 +476,10 @@ function renderRanking(){
     box.appendChild(d);
   });
 }
-const ARTICLES=[{slug:'prep-guide',title:'応募準備ガイド',category:'応募準備ガイド',body:'# 応募準備\n- 履歴書\n- ポートフォリオ',tags:['履歴書','面接']},{slug:'choose-role',title:'業界・職種の選び方',category:'業界・職種の選び方',body:'# 職種選び',tags:['キャリア']}];
+const ARTICLES=[
+  {slug:'prep-guide',title:'応募準備ガイド',category:'応募準備ガイド',body:'# 応募準備\n- 履歴書\n- ポートフォリオ',tags:['履歴書','面接']},
+  {slug:'choose-role',title:'業界・職種の選び方',category:'業界・職種の選び方',body:'# 職種選び',tags:['キャリア']}
+];
 const ARTICLE_CATS=['応募準備ガイド','業界・職種の選び方'];
 function renderArticles(){
   const sel=$('#articleCat'), aq=$('#articleQ'), list=$('#articleList'), detail=$('#articleDetail'); if(!sel) return;
@@ -534,26 +501,37 @@ function mountEducation(){
   const host=$('#eduMount'); if(!host) return;
   host.innerHTML=`<div class="grid topbar"><input id="eq" class="input" placeholder="フリーワード"/><select id="esort" class="input"><option value="new">新着順</option><option value="wage">時給が高い順</option><option value="days">勤務日数が少ない順</option></select><select id="ewage" class="input"><option value="0">下限なし</option><option value="1200">1200円〜</option><option value="1500">1500円〜</option><option value="2000">2000円〜</option><option value="2500">2500円〜</option></select><select id="edays" class="input"><option value="2">週2〜</option><option value="3">週3〜</option><option value="4">週4〜</option></select></div><div class="row"><label class="chip"><input type="checkbox" hidden id="eopen" checked>募集中のみ</label></div><div id="elist" class="grid list"></div>`;
   const eq=$('#eq'), es=$('#esort'), ew=$('#ewage'), ed=$('#edays'), eopen=$('#eopen'), elist=$('#elist');
-  const draw=()=>{ let rows=JOBS_OBJ.filter(j=>j.jobType==='education'); const term=eq.value.trim().toLowerCase(); if(term) rows=rows.filter(j=>(j.title+j.company+j.desc).toLowerCase().includes(term)); rows=rows.filter(j=> j.wage>=+ew.value && j.days>=+ed.value && (!eopen.checked || j.open)); rows.sort((a,b)=> es.value==='wage'? b.wage-a.wage : es.value==='days'? a.days-b.days : +new Date(b.created)-+new Date(a.created)); elist.innerHTML=''; rows.forEach(j=>{ const d=document.createElement('div'); d.className='panel card '+(j.open?'':'closed'); d.innerHTML=`<div><div>${j.open?'<span class="badge">募集中</span>':'<span class="badge" style="background:#ffe7e7;border-color:#ffd6d6">募集停止</span>'}</div><h3>${esc(j.title)}</h3><div class="dim">${esc(j.company)}｜時給${j.wage}円｜週${j.days}〜</div></div><div class="row right">${j.open?`<button type="button" class="btn" data-apply="${j.id}">エントリー</button>`:''}</div>`; elist.appendChild(d); }); elist.onclick=(e)=>{ const app=e.target.closest('[data-apply]')?.dataset.apply; if(app) openApply(+app); }; }; [eq,es,ew,ed,eopen].forEach(el=> el.addEventListener('input',draw)); draw();
+  const draw=()=>{ let rows=JOBS_OBJ.filter(j=>j.jobType==='education'); const term=eq.value.trim().toLowerCase(); if(term) rows=rows.filter(j=>(j.title+j.company+j.desc).toLowerCase().includes(term)); rows=rows.filter(j=> j.wage>=+ew.value && j.days>=+ed.value && (!eopen.checked || j.open)); rows.sort((a,b)=> es.value==='wage'? b.wage-a.wage : es.value==='days'? a.days-b.days : +new Date(b.created)-+new Date(a.created)); elist.innerHTML=''; rows.forEach(j=>{ const d=document.createElement('div'); d.className='panel card '+(j.open?'':'closed'); d.innerHTML=`<div><div class="thumb">${j.img?`<img src="${esc(j.img)}" alt="">`:''}</div><h3 class="mt-1">${esc(j.title)}</h3><div class="dim">${esc(j.company)}｜時給${j.wage}円｜週${j.days}〜</div></div><div class="row right">${j.open?`<button type="button" class="btn" data-apply="${j.id}">エントリー</button>`:''}</div>`; elist.appendChild(d); }); elist.onclick=(e)=>{ const app=e.target.closest('[data-apply]')?.dataset.apply; if(app) openApply(+app); }; }; [eq,es,ew,ed,eopen].forEach(el=> el.addEventListener('input',draw)); draw();
 }
 
 /* ========= 詳細/応募 ========= */
 function openDetail(id){
   const j=JOBS_OBJ.find(x=>x.id===id); if(!j) return;
   addPV(id); logEvent('view',{jobId:id});
-  showModal(`<h3>${esc(j.title)}</h3><div class="dim">${esc(j.company)}・${esc(j.location)}｜時給${j.wage}円｜週${j.days}〜｜在籍${j.intern}｜${fmtDate(j.created)}</div><p>${esc(j.desc)}</p><div class="row right">${j.open?`<button type="button" class="btn primary" id="goApply">エントリー</button>`:''}<button type="button" class="btn" id="favBtn">★</button></div>`,()=>{ $('#favBtn').onclick=()=>{ const s=getFavs(); s.add(j.id); setFavs(s); toast('★追加'); }; const btn=$('#goApply'); if(btn) btn.onclick=()=>{ closeModal(); openApply(j.id); };});
+  showModal(`
+    <h3 class="font-semibold">${esc(j.title)}</h3>
+    <div class="dim">${esc(j.company)}・${esc(j.location)}｜時給${j.wage}円｜週${j.days}〜｜在籍${j.intern}｜${fmtDate(j.created)}</div>
+    <div class="thumb mt-2">${j.img?`<img src="${esc(j.img)}" alt="">`:''}</div>
+    <p class="mt-2">${esc(j.desc)}</p>
+    <div class="row right mt-2">
+      ${j.open?`<button type="button" class="btn primary" id="goApply">エントリー</button>`:''}
+      <button type="button" class="btn" id="favBtn">★</button>
+    </div>
+  `,()=>{
+    $('#favBtn').onclick=()=>{ const s=getFavs(); s.add(j.id); setFavs(s); toast('★追加'); };
+    const btn=$('#goApply'); if(btn) btn.onclick=()=>{ closeModal(); openApply(j.id); };
+  });
 }
 function openApply(jobId){
   const u=currentUser();
   if(!u.email && !u.name){ openLoginCard('ログイン'); return; }
-
   const users = getUsers();
   const me = users.find(x=>x.id===u.id) || {};
 
   showModal(`
     <h3>応募前の確認</h3>
     <div class="meta">必要事項をご入力ください（次回以降は自動で呼び出されます）。</div>
-    <form id="preApplyForm" class="grid" style="grid-template-columns:1fr 1fr;">
+    <form id="preApplyForm" class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
       <div class="panel">
         <label>氏名<input name="name" class="input" value="${esc(me.name||u.name||'')}" required /></label>
         <label>生年月日<input name="birth" type="date" class="input" value="${esc(me.birth||'')}" required /></label>
@@ -598,19 +576,19 @@ function openApply(jobId){
       };
       if(!profile.name || !profile.birth){ toast('氏名と生年月日は必須です'); return; }
 
-      // users に保存
+      // users 更新
       const arr = getUsers(); let user = arr.find(x=>x.id===u.id);
       if(!user){
         user = { id:u.id, email:u.email||null, name:profile.name, provider:u.provider||'local', createdAt:nowISO(), lastLoginAt:nowISO(), totalLogins:1 };
         arr.push(user);
       }
       Object.assign(user, profile);
-      setUsers(arr);  // Sheets 同期へ
+      setUsers(arr);
 
-      // applications
+      // applications 追加（status=pending）
       const a=getApps();
       if(a.some(x=>x.userId===u.id && x.jobId===jobId)){ toast('この求人には既に応募済み'); return; }
-      a.push({ id: uid(), jobId, userId: u.id, email: u.email||"", name: profile.name||u.name||"", ts: nowISO(), message: profile.lastMessage||"" });
+      a.push({ id: uid(), jobId, userId: u.id, email: u.email||"", name: profile.name||u.name||"", ts: nowISO(), message: profile.lastMessage||"", status: "pending" });
       setApps(a);
 
       logEvent('apply',{jobId});
@@ -620,12 +598,14 @@ function openApply(jobId){
   });
 }
 
-/* ========= 採用担当者フォーム ========= */
+/* ========= 採用担当者フォーム（会社登録／掲載前編集） ========= */
 function initEmployerForm(){
   const form = document.getElementById('employerForm');
   if(!form) return;
   const btn = document.getElementById('saveEmployer');
   const note = document.getElementById('employerNote');
+
+  // 会社情報の保存
   btn.onclick = ()=>{
     const fd = new FormData(form);
     if(!fd.get('company') || !fd.get('pic') || !fd.get('email') || !fd.get('agree')){
@@ -641,6 +621,168 @@ function initEmployerForm(){
     const arr = getEmployers(); arr.push(rec); setEmployers(arr);
     note.textContent = '登録を受け付けました（シートに同期します）';
     toast('会社情報を登録しました');
+  };
+
+  // 掲載前編集（新規）
+  $('#openNewJob').onclick=()=> openDraftEditor();
+  drawDrafts();
+}
+
+function openDraftEditor(draft=null){
+  // 既存値
+  const dv = draft || {title:'',company:'',location:'',category:'',desc:'',wage:1500,days:2,flags:[],open:true,intern:0,jobType:'regular',prefecture:'',city:'',img:''};
+  showModal(`
+    <h3>掲載前編集</h3>
+    <form id="draftForm" class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
+      <div class="panel">
+        <label>タイトル<input name="title" class="input" value="${esc(dv.title)}" required></label>
+        <label>会社名<input name="company" class="input" value="${esc(dv.company)}" required></label>
+        <label>勤務地<input name="location" class="input" value="${esc(dv.location)}"></label>
+        <label>職種<select name="category" class="input">
+          ${CATEGORIES.map(c=>`<option ${dv.category===c?'selected':''}>${c}</option>`).join('')}
+        </select></label>
+        <label>説明<textarea name="desc" class="input" rows="4">${esc(dv.desc)}</textarea></label>
+      </div>
+      <div class="panel">
+        <label>時給<input name="wage" type="number" class="input" value="${esc(dv.wage)}"></label>
+        <label>勤務日数<input name="days" type="number" class="input" value="${esc(dv.days)}"></label>
+        <label>特徴（カンマ区切り）<input name="flags" class="input" value="${esc((dv.flags||[]).join(', '))}"></label>
+        <label>インターン在籍人数<input name="intern" type="number" class="input" value="${esc(dv.intern)}"></label>
+        <label>求人種別<select name="jobType" class="input">
+          <option ${dv.jobType==='regular'?'selected':''} value="regular">通常</option>
+          <option ${dv.jobType==='education'?'selected':''} value="education">教育系</option>
+        </select></label>
+        <label>都道府県<input name="prefecture" class="input" value="${esc(dv.prefecture)}"></label>
+        <label>市区<input name="city" class="input" value="${esc(dv.city)}"></label>
+        <label>メイン画像<input name="img" type="file" accept="image/*" class="input"></label>
+        <div class="thumb mt-2" id="draftImgPrev">${dv.img?`<img src="${esc(dv.img)}" alt="">`:''}</div>
+      </div>
+    </form>
+    <div class="row right">
+      ${draft?`<button type="button" class="btn" id="deleteDraft">削除</button>`:''}
+      <button type="button" class="btn primary" id="saveDraft">保存</button>
+      <button type="button" class="btn" id="publishDraft">公開</button>
+    </div>
+  `, ()=>{
+    const form=$('#draftForm');
+    // 画像プレビュー
+    form.querySelector('[name="img"]').addEventListener('change', (ev)=>{
+      const f=ev.target.files[0]; if(!f) return;
+      const fr=new FileReader(); fr.onload=()=>{ $('#draftImgPrev').innerHTML=`<img src="${fr.result}">`; $('#draftImgPrev').dataset.dataurl=fr.result; }; fr.readAsDataURL(f);
+    });
+
+    const collect=()=>{
+      const fd=new FormData(form);
+      const img = $('#draftImgPrev').dataset.dataurl || draft?.img || '';
+      return {
+        id: draft?.id || ('d_'+uid()),
+        title: fd.get('title'), company: fd.get('company'), location: fd.get('location'),
+        category: fd.get('category'), desc: fd.get('desc'),
+        wage: +fd.get('wage')||0, days:+fd.get('days')||0,
+        flags: String(fd.get('flags')||'').split(',').map(s=>s.trim()).filter(Boolean),
+        intern:+fd.get('intern')||0, jobType: fd.get('jobType')||'regular',
+        prefecture: fd.get('prefecture')||'', city: fd.get('city')||'',
+        open:true, created: nowISO(), img
+      };
+    };
+
+    $('#saveDraft').onclick=()=>{
+      const d = collect(); const arr=getDrafts();
+      const idx=arr.findIndex(x=>x.id===d.id); if(idx>=0) arr[idx]=d; else arr.unshift(d);
+      setDrafts(arr); toast('下書きを保存'); drawDrafts(); closeModal();
+    };
+    $('#publishDraft').onclick=()=>{
+      const d = collect();
+      // 公開：JOBS_OBJへ（簡易に先頭へ）
+      JOBS_OBJ.unshift({
+        id: Math.max( ...JOBS_OBJ.map(x=>x.id), 1000 ) + 1,
+        title:d.title, company:d.company, location:d.location, category:d.category, desc:d.desc,
+        wage:d.wage, days:d.days, flags:d.flags, open:true, intern:d.intern, created:d.created,
+        jobType:d.jobType, prefecture:d.prefecture, city:d.city, img:d.img
+      });
+      // 下書きから削除
+      const arr=getDrafts().filter(x=>x.id!==d.id); setDrafts(arr);
+      toast('公開しました'); drawDrafts(); render(1); closeModal();
+    };
+    if(draft){
+      $('#deleteDraft').onclick=()=>{ setDrafts(getDrafts().filter(x=>x.id!==draft.id)); toast('削除しました'); drawDrafts(); closeModal(); };
+    }
+  });
+}
+function drawDrafts(){
+  const host=$('#draftList'); if(!host) return;
+  const arr=getDrafts(); host.innerHTML = arr.length ? '' : '<div class="meta">下書きはありません。</div>';
+  arr.forEach(d=>{
+    const el=document.createElement('div'); el.className='panel';
+    el.innerHTML=`
+      <div class="row between">
+        <div><b>${esc(d.title||'(無題)')}</b><span class="meta">／${esc(d.company||'')}</span></div>
+        <div class="row">
+          <button class="btn" data-edit="${d.id}">編集</button>
+          <button class="btn primary" data-pub="${d.id}">公開</button>
+        </div>
+      </div>`;
+    host.appendChild(el);
+  });
+  host.onclick=(e)=>{
+    const ed=e.target.closest('[data-edit]')?.dataset.edit;
+    const pb=e.target.closest('[data-pub]')?.dataset.pub;
+    if(ed){ const d=getDrafts().find(x=>x.id===ed); openDraftEditor(d); }
+    if(pb){ const d=getDrafts().find(x=>x.id===pb); openDraftEditor(d); } // 同じUIで公開もできる
+  };
+}
+
+/* ========= 管理画面 ========= */
+function renderAdmin(){
+  // 応募一覧（pending / approved / rejected）
+  const apps=getApps().slice().sort((a,b)=> +new Date(b.ts)-+new Date(a.ts));
+  const jobsById = Object.fromEntries(JOBS_OBJ.map(j=>[j.id,j]));
+  const box=$('#adminApps'); box.innerHTML = apps.length? '' : '<div class="meta">応募はまだありません。</div>';
+  apps.forEach(a=>{
+    const j=jobsById[a.jobId];
+    const el=document.createElement('div'); el.className='panel';
+    el.innerHTML=`
+      <div><b>${esc(a.name||'(匿名)')}</b> <span class="meta">— ${new Date(a.ts).toLocaleString()}</span></div>
+      <div class="meta">応募先：${esc(j?.title||'(不明)')} ／ ${esc(j?.company||'')}</div>
+      <div class="meta">メッセージ：${esc(a.message||'（なし）')}</div>
+      <div class="row right mt-1">
+        <span class="badge">status: ${esc(a.status||'pending')}</span>
+        <button class="btn" data-app-approve="${a.id}">承認</button>
+        <button class="btn" data-app-reject="${a.id}">却下</button>
+      </div>`;
+    box.appendChild(el);
+  });
+  box.onclick=(e)=>{
+    const ok=e.target.closest('[data-app-approve]')?.dataset.appApprove;
+    const ng=e.target.closest('[data-app-reject]')?.dataset.appReject;
+    if(ok||ng){
+      const arr=getApps();
+      const a=arr.find(x=>x.id===(ok||ng));
+      a.status = ok ? 'approved' : 'rejected';
+      setApps(arr);
+      toast(ok?'承認しました':'却下しました');
+      renderAdmin(); // 再描画
+    }
+  };
+
+  // 求人の公開/停止
+  const jbox=$('#adminJobs'); jbox.innerHTML='';
+  JOBS_OBJ.forEach(j=>{
+    const el=document.createElement('div'); el.className='panel';
+    el.innerHTML=`
+      <div class="row between">
+        <div><b>${esc(j.title)}</b> <span class="meta">／${esc(j.company)}</span></div>
+        <div class="row">
+          <span class="badge">${j.open?'公開中':'停止中'}</span>
+          <button class="btn" data-job-toggle="${j.id}">${j.open?'停止する':'公開する'}</button>
+        </div>
+      </div>`;
+    jbox.appendChild(el);
+  });
+  jbox.onclick=(e)=>{
+    const id=e.target.closest('[data-job-toggle]')?.dataset.jobToggle;
+    if(!id) return; const j=JOBS_OBJ.find(x=>x.id==id); if(!j) return;
+    j.open = !j.open; toast(j.open?'公開しました':'停止しました'); renderAdmin(); render(); // 再描画
   };
 }
 
@@ -676,7 +818,7 @@ function renderAccount(){
 
   const myApps=getApps().filter(a=>a.userId===u.id).map(a=>({ ...a, job:JOBS_OBJ.find(j=>j.id===a.jobId) }));
   $('#activityBox').innerHTML = myApps.length
-    ? '<ul>'+myApps.map(x=>`<li>「${esc(x.job?.title||'不明')}」 <span class="meta">（${esc(x.job?.company||'')}）</span> <span class="meta">— ${new Date(x.ts).toLocaleString()}</span></li>`).join('')+'</ul>'
+    ? '<ul>'+myApps.map(x=>`<li>「${esc(x.job?.title||'不明')}」 <span class="meta">（${esc(x.job?.company||'')}）</span> <span class="meta">— ${new Date(x.ts).toLocaleString()} ／ ${esc(x.status||'pending')}</span></li>`).join('')+'</ul>'
     : '<div class="meta">応募（参加）履歴はまだありません。</div>';
 }
 
@@ -689,7 +831,7 @@ function toast(m){ const t=$('#toast'); t.textContent=m; t.style.display='block'
 
 /* ========= 初期化 ========= */
 function init(){
-  bindGlobalClickRouter();   // ★ クリック委譲（最優先）
+  bindGlobalClickRouter();
   bindAuthButtons();
   bindMenu();
   bindModal();
@@ -702,15 +844,15 @@ function init(){
   renderRanking();
   logEvent('view',{page:'jobs'});
 
-  // 初回訪問ポップ
   showFirstVisitPop();
 
-  // 初回同期（ローカルに何かあれば送る）
-  scheduleSync('users'); scheduleSync('events'); scheduleSync('applications');
-  initEmployerForm();
+  // シート同期（ローカルに何かあれば送る）
+  scheduleSync('users'); scheduleSync('events'); scheduleSync('applications'); scheduleSync('employers');
+
+  initEmployerForm(); // 採用者ビュー準備
 }
 
-// DOM 後に必ず実行
+// DOM ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init, { once: true });
 } else {
