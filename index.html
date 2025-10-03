@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>長期インターン（</title>
+  <link rel="stylesheet" href="./styles.css"/>
+
+  <!-- SDKs（未設定でも表示はOK） -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
+  <script src="https://static.line-scdn.net/liff/edge/versions/2.22.0/sdk.js" defer></script>
+</head>
+<body>
+<header class="hdr">
+  <div class="head">
+    <div class="brand">長期インターン</div>
+
+    <nav class="gnav">
+      <button type="button" class="navbtn active" data-route="jobs">求人を探す</button>
+      <button type="button" class="navbtn" data-route="map">地域ナビ</button>
+      <button type="button" class="navbtn" data-route="ranking">人気ランキング</button>
+      <button type="button" class="navbtn" data-route="articles">記事</button>
+      <button type="button" class="navbtn" data-route="education">教育系</button>
+      <button type="button" class="navbtn" data-route="account">アカウント</button>
+    </nav>
+
+    <div class="spacer"></div>
+
+    <!-- 右上メニュー -->
+    <div class="menu-wrap">
+      <button type="button" id="menuBtn" class="btn">メニュー ▾</button>
+      <div id="menuPanel" class="menu-panel">
+        <a data-route="employers">採用担当者様</a>
+        <a data-route="legal">利用規約</a>
+        <a data-route="privacy">プライバシー</a>
+        <a data-route="company">会社情報</a>
+      </div>
+    </div>
+
+    <span id="loginState" class="meta">未ログイン</span>
+    <button type="button" id="btnSignup" class="btn">新規登録</button>
+    <button type="button" id="btnLogin" class="btn">ログイン</button>
+    <button type="button" id="btnLogout" class="btn" style="display:none">ログアウト</button>
+  </div>
+</header>
+
+<main class="container">
+  <!-- 求人一覧 -->
+  <section id="view-jobs" class="panel" style="display:block">
+    <h2>求人一覧</h2>
+    <div class="grid topbar">
+      <input id="q" class="input" placeholder="フリーワード（会社 / タイトル / 説明 / タグ）"/>
+      <select id="sort" class="input">
+        <option value="new">新着順</option>
+        <option value="recommend">おすすめ順</option>
+        <option value="wage">時給が高い順</option>
+        <option value="days">勤務日数が少ない順</option>
+        <option value="intern">インターン生が多い順</option>
+        <option value="fav">人気（★/応募/PV）順</option>
+      </select>
+      <select id="minWage" class="input">
+        <option value="0">時給 下限なし</option>
+        <option value="1200">1200円〜</option>
+        <option value="1500">1500円〜</option>
+        <option value="2000">2000円〜</option>
+        <option value="2500">2500円〜</option>
+      </select>
+      <select id="minDays" class="input">
+        <option value="2">週2〜</option><option value="3">週3〜</option><option value="4">週4〜</option>
+      </select>
+    </div>
+
+    <div class="section-title">職種</div>
+    <div id="catBox" class="row"></div>
+
+    <div class="section-title">働き方・特徴</div>
+    <div class="row" id="flagsBox"></div>
+
+    <div class="row wrap">
+      <label class="chip"><input type="checkbox" hidden id="f-open" checked>募集中のみ</label>
+      <label class="chip"><input type="checkbox" hidden id="favOnly">★お気に入りのみ</label>
+      <label class="chip"><input type="checkbox" hidden id="intern3">在籍3人以上</label>
+      <label class="chip"><input type="checkbox" hidden id="intern10">在籍10人以上</label>
+      <label class="chip"><input type="checkbox" hidden id="intern20">在籍20人以上</label>
+    </div>
+
+    <div class="row between">
+      <div class="meta" id="stat">0件</div>
+      <div class="row">
+        <select id="pageSize" class="input w90"><option>5</option><option selected>10</option><option>15</option><option>20</option></select>
+        <button type="button" id="reset" class="btn">条件リセット</button>
+      </div>
+    </div>
+
+    <div id="cards" class="grid list"></div>
+    <div id="pager" class="pager"></div>
+  </section>
+
+  <!-- 地域ナビ -->
+  <section id="view-map" class="panel" style="display:none">
+    <h2>地域ナビ</h2>
+    <div class="meta">都道府県→区市クリックで一覧へ反映</div>
+    <div id="mapLinks" class="mapgrid"></div>
+  </section>
+
+  <!-- 人気ランキング -->
+  <section id="view-ranking" class="panel" style="display:none">
+    <h2>人気ランキング TOP20</h2>
+    <div class="meta">score = 応募×2 + ★ + PV</div>
+    <div id="rankbox" class="grid"></div>
+  </section>
+
+  <!-- 記事 -->
+  <section id="view-articles" class="panel" style="display:none">
+    <h2>記事/コンテンツ</h2>
+    <div class="row">
+      <select id="articleCat" class="input w180"><option value="">すべて</option></select>
+      <input id="articleQ" class="input" placeholder="記事を検索"/>
+    </div>
+    <div id="articleList" class="grid"></div>
+    <article id="articleDetail" class="panel" style="display:none"></article>
+  </section>
+
+  <!-- 教育系 -->
+  <section id="view-education" class="panel" style="display:none">
+    <h2>教育系アルバイト</h2>
+    <div class="meta">jobType=educationのみ表示</div>
+    <div id="eduMount"></div>
+  </section>
+
+  <!-- 採用担当者様：会社登録フォーム -->
+  <section id="view-employers" class="panel" style="display:none">
+    <h2>採用担当者様</h2>
+    <p class="meta">以下の内容を登録いただくと、審査後に求人の掲載・配信が可能になります。</p>
+
+    <form id="employerForm" class="grid" style="grid-template-columns:1fr 1fr;">
+      <div class="panel">
+        <label>会社名<input name="company" class="input" required placeholder="株式会社〇〇"/></label>
+        <label>担当者名<input name="pic" class="input" required placeholder="山田 太郎"/></label>
+        <label>担当者メール<input name="email" type="email" class="input" required placeholder="hr@example.com"/></label>
+        <label>電話番号<input name="tel" class="input" placeholder="03-...."/></label>
+        <label>所在地（都道府県）<select name="pref" class="input">
+          <option value="">選択してください</option>
+          <option>東京都</option><option>神奈川県</option><option>大阪府</option><option>愛知県</option><option>福岡県</option>
+        </select></label>
+        <label>企業規模<select name="size" class="input">
+          <option value="">選択してください</option>
+          <option>〜10名</option><option>11〜50名</option><option>51〜200名</option><option>201〜1000名</option><option>1000名以上</option>
+        </select></label>
+      </div>
+      <div class="panel">
+        <label>業種<select name="industry" class="input">
+          <option value="">選択してください</option>
+          <option>IT・ソフトウェア</option><option>インターネット/メディア</option><option>コンサル</option>
+          <option>メーカー</option><option>金融</option><option>人材/教育</option><option>その他</option>
+        </select></label>
+        <label>自社サイトURL<input name="url" class="input" placeholder="https://..."/></label>
+        <label>請求情報メモ<textarea name="billing" class="input" rows="3" placeholder="請求先名義/住所/支払サイトなど"></textarea></label>
+        <label class="row"><input type="checkbox" name="agree" required> 利用規約・プライバシーに同意する</label>
+        <div class="row right"><button type="button" id="saveEmployer" class="btn primary">登録する</button></div>
+        <div class="meta" id="employerNote"></div>
+      </div>
+    </form>
+
+    <hr/>
+    <h3>導入フロー</h3>
+    <ol><li>登録情報の確認</li><li>契約</li><li>求人作成（掲載数無制限）</li></ol>
+  </section>
+
+  <!-- 法務/会社情報 -->
+  <section id="view-legal" class="panel" style="display:none"><h2>利用規約（ダミー）</h2><div class="legal">…</div></section>
+  <section id="view-privacy" class="panel" style="display:none"><h2>プライバシーポリシー（ダミー）</h2><div class="legal">…</div></section>
+  <section id="view-company" class="panel" style="display:none"><h2>会社情報</h2><ul><li>株式会社Brotial（ダミー）</li></ul></section>
+
+  <!-- アカウント（履歴書プロフィール＋活動記録） -->
+  <section id="view-account" class="panel" style="display:none">
+    <h2>アカウント</h2>
+    <div id="acctBox" class="panel"></div>
+
+    <h3>プロフィール（履歴書）</h3>
+    <form id="profileForm" class="grid" style="grid-template-columns:1fr 1fr;">
+      <div class="panel">
+        <label>名前<input class="input" name="name" placeholder="山田 太郎"/></label>
+        <label>大学/学校名<input class="input" name="school" placeholder="UT大学"/></label>
+        <label>学年/卒年<input class="input" name="grade" placeholder="B3 / 2027"/></label>
+        <label>専攻<input class="input" name="major" placeholder="情報工学"/></label>
+        <label>希望職種<input class="input" name="wishRole" placeholder="エンジニア / マーケ"/></label>
+        <label>希望勤務地<input class="input" name="wishArea" placeholder="東京 / 関西 / リモート"/></label>
+        <label>希望時給<input class="input" name="wishWage" placeholder="1500〜"/></label>
+        <label>就業可能日数<input class="input" name="days" placeholder="週3〜"/></label>
+      </div>
+      <div class="panel">
+        <label>スキルタグ（カンマ区切り）<input class="input" name="skills" placeholder="Go, React, SQL"/></label>
+        <label>SNS / ポートフォリオURL<input class="input" name="links" placeholder="https://..."/></label>
+        <label>自己PR<textarea class="input" name="bio" rows="6" placeholder="強み・経験・関心など"></textarea></label>
+        <label>顔写真（任意）<input class="input" name="avatar" type="file" accept="image/*"/></label>
+        <div class="row">
+          <img id="avatarPreview" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid var(--line);display:none"/>
+          <button type="button" id="saveProfile" class="btn primary">保存</button>
+        </div>
+      </div>
+    </form>
+
+    <h3>あなたの活動記録</h3>
+    <div id="activityBox" class="panel"></div>
+    <div class="meta">※ データは自動でスプレッドシートに同期されます。</div>
+  </section>
+</main>
+
+<!-- モーダル -->
+<div id="modal" class="modal"><div class="panel box">
+  <div id="modalBody"></div>
+  <div class="row right"><button type="button" class="btn" id="modalClose">閉じる</button></div>
+</div></div>
+<div id="toast" class="toast">OK</div>
+
+<!-- アプリ本体（必ず defer） -->
+<script src="./app.js" defer></script>
+</body>
+</html>
