@@ -1,13 +1,15 @@
 /* ========= 設定 ========= */
-// ★差し替え：GAS WebアプリURL（/exec）
+// ★必ず差し替え（GAS WebアプリURL /exec）
 const SHEETS_ENDPOINT = "PUT_YOUR_GAS_WEBAPP_URL_HERE";
-const SHEETS_TOKEN = "";
+const SHEETS_TOKEN = "";           // GAS側 EXPECT と合わせると簡易認証
 const SYNC_ENABLED = true;
 const SYNC_DEBOUNCE_MS = 1200;
 
-// Google / LINE（任意）
+// Google（Firebase：未設定でもOK）
 const ENABLE_GOOGLE = true;
 const firebaseConfig = { apiKey:"", authDomain:"", projectId:"", appId:"" };
+
+// LINE（LIFF：未設定でもOK）
 const ENABLE_LINE = true;
 const LIFF_ID = "";
 
@@ -18,6 +20,7 @@ const LS = {
   employers:'ut_employers', seenPop:'ut_seen_pop', jobs:'ut_jobs', drafts:'ut_job_drafts'
 };
 
+// 初期シード（画像付き）
 const JOBS_SEED = [
   [1,'バックエンド開発（Go/GCP）','Alpha','渋谷','エンジニア','API実装/ログ基盤',2500,3,['フル/一部リモート','フレックス','英語力'],true,12,'2025-09-25','regular','東京都','渋谷区','https://picsum.photos/seed/job1/800/450'],
   [2,'グロースマーケ補佐（SNS/広告）','Beta','五反田','マーケ','SNS運用/ABテスト',2000,2,['フレックス','ベンチャー'],true,3,'2025-09-20','regular','東京都','品川区','https://picsum.photos/seed/job2/800/450'],
@@ -46,9 +49,11 @@ const fmtDate=(s)=>{const d=new Date(s);return `${d.getFullYear()}/${d.getMonth(
 const getJSON=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}};
 const setJSON=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 
-/* ========= Jobs ========= */
-const allJobs = () => [...JOBS_SEED_OBJ, ...getJSON(LS.jobs,[])];
-
+/* ========= Jobs（シード + ローカル公開分 + ドラフト） ========= */
+const allJobs = () => {
+  const local = getJSON(LS.jobs,[]);
+  return [...JOBS_SEED_OBJ, ...local];
+};
 const getDrafts = ()=> getJSON(LS.drafts,[]);
 const setDrafts = (arr)=> setJSON(LS.drafts,arr);
 const publishDraft = (draftId)=>{
@@ -56,6 +61,7 @@ const publishDraft = (draftId)=>{
   const d = drafts.find(x=>x.id===draftId);
   if(!d) return false;
   const jobs = getJSON(LS.jobs,[]);
+  // 新しい連番ID
   const newId = Math.max(0, ...JOBS_SEED_OBJ.map(j=>j.id), ...jobs.map(j=>j.id)) + 1;
   jobs.push({
     id:newId, title:d.title, company:d.company, location:d.location, category:d.category, desc:d.desc,
@@ -65,7 +71,8 @@ const publishDraft = (draftId)=>{
   setJSON(LS.jobs, jobs);
   setDrafts(drafts.filter(x=>x.id!==draftId));
   toast('ドラフトを公開しました');
-  render(1); drawAdmin();
+  render(1); // リスト更新
+  drawAdmin();
   return true;
 };
 
@@ -132,7 +139,11 @@ function currentUser(){
   if(!gid){ gid='guest_'+uid(); localStorage.setItem(LS.guest,gid); }
   return { id:gid, guest:true, email:null, name:null, provider:null, avatar:null };
 }
-function logEvent(type, payload={}){ const u=currentUser(); const ev=getEvents(); ev.push({ id:uid(), ts:nowISO(), type, userId:u.id, email:u.email||null, ...payload }); setEvents(ev); }
+function logEvent(type, payload={}){
+  const u=currentUser();
+  const ev=getEvents(); ev.push({ id:uid(), ts:nowISO(), type, userId:u.id, email:u.email||null, ...payload });
+  setEvents(ev);
+}
 function addPV(jobId){ const p=getPVs(); p.push({id:uid(),jobId,ts:nowISO()}); setPVs(p); }
 
 /* ========= 初回ポップ ========= */
@@ -156,9 +167,18 @@ function showFirstVisitPop(){
 
 /* ========= 認証UI ========= */
 const loginState=$('#loginState'), btnLogin=$('#btnLogin'), btnLogout=$('#btnLogout'), btnSignup=$('#btnSignup');
-function bindAuthButtons(){ btnLogin.onclick=()=>openLoginCard('ログイン'); btnSignup.onclick=()=>openLoginCard('新規登録'); btnLogout.onclick=()=>logout(); }
-function refreshLogin(){ const u=getJSON(LS.user,null); if(u){ loginState.innerHTML=`ログイン中：<b>${esc(u.name||u.email||u.id)}</b>`; btnLogout.style.display='inline-block'; } else { loginState.textContent='未ログイン'; btnLogout.style.display='none'; } }
+function bindAuthButtons(){
+  btnLogin.onclick=()=>openLoginCard('ログイン');
+  btnSignup.onclick=()=>openLoginCard('新規登録');
+  btnLogout.onclick=()=>logout();
+}
+function refreshLogin(){
+  const u=getJSON(LS.user,null);
+  if(u){ loginState.innerHTML=`ログイン中：<b>${esc(u.name||u.email||u.id)}</b>`; btnLogout.style.display='inline-block'; }
+  else { loginState.textContent='未ログイン'; btnLogout.style.display=''; btnLogout.style.display='none'; }
+}
 
+/* —— ログインカード（Google/LINE/メール） —— */
 function openLoginCard(title){
   showModal(`
     <div class="panel soft">
@@ -172,33 +192,44 @@ function openLoginCard(title){
         <label>パスワード<input id="lpass" class="input" type="password" placeholder="********"/></label>
         <div class="row right"><button type="button" id="btnEmailLogin" class="btn primary">ログイン</button></div>
       </div>
-      <p class="meta">未登録の方は上のメール欄でそのまま作成できます（デモ）</p>
+      <p class="meta">未登録の方は上のメール欄でそのまま作成できます／パスワードを忘れた方はログイン試行でエラー表示（デモ）</p>
     </div>
   `, ()=>{
     $('#btnGoogleLogin').onclick=()=>{ if(!ENABLE_GOOGLE||!firebaseConfig.apiKey){ toast('Google設定が未完了'); return; } googleLogin(); };
     $('#btnLineLogin').onclick=()=>{ if(!ENABLE_LINE||!LIFF_ID||!window.liff){ toast('LINE設定が未完了'); return; } lineLogin(); };
-    $('#btnEmailLogin').onclick=()=>{ const email=$('#lemail').value.trim(); const pass=$('#lpass').value; if(!email||!pass) return toast('メール/パスを入力'); emailPassLogin(email,pass); };
+    $('#btnEmailLogin').onclick=()=>{
+      const email=$('#lemail').value.trim(); const pass=$('#lpass').value;
+      if(!email||!pass) return toast('メール/パスを入力');
+      emailPassLogin(email,pass);
+    };
   });
 }
+
 function emailPassLogin(email, pass){
   const h=t=>btoa(unescape(encodeURIComponent(t))).slice(0,24);
-  const accounts=getJSON(LS.accounts,[]); let acc=accounts.find(a=>a.email===email&&a.provider==='password');
+  const accounts=getJSON(LS.accounts,[]);
+  let acc=accounts.find(a=>a.email===email&&a.provider==='password');
   if(!acc){ acc={email,provider:'password',passHash:h(pass),createdAt:nowISO()}; accounts.push(acc); }
   else if(acc.passHash!==h(pass)){ toast('パスワードが違います'); return; }
   setJSON(LS.accounts,accounts);
   commitLogin({provider:'password',externalId:'pwd_'+email,email,name:email});
   closeModal(); toast('ログインしました');
 }
-// Google/LINE（省略せず実装）
+
+// Google
 let firebaseReady=false;
 try{ if(ENABLE_GOOGLE&&firebaseConfig.apiKey){ firebase.initializeApp(firebaseConfig); firebaseReady=true; } }catch(e){}
-async function googleLogin(){ if(!firebaseReady) return toast('Google設定が未完了');
+async function googleLogin(){
+  if(!firebaseReady) return toast('Google設定が未完了');
   const provider=new firebase.auth.GoogleAuthProvider();
-  try{ const cred=await firebase.auth().signInWithPopup(provider); const p=cred.user;
+  try{
+    const cred=await firebase.auth().signInWithPopup(provider);
+    const p=cred.user;
     commitLogin({provider:'google',externalId:p.uid,email:p.email||null,name:p.displayName||null,avatar:p.photoURL||null});
     closeModal(); toast('Googleでログイン');
   }catch(e){ console.error(e); toast('Googleログイン失敗'); }
 }
+// LINE
 async function lineLogin(){
   try{
     await liff.init({liffId:LIFF_ID});
@@ -208,8 +239,11 @@ async function lineLogin(){
     closeModal(); toast('LINEでログイン');
   }catch(e){ console.error(e); toast('LINEログイン失敗'); }
 }
+
+/* —— 共通：ログイン確定/移行/同期 —— */
 function commitLogin({provider,externalId,email,name,avatar}){
-  const prev=currentUser(); const users=getUsers();
+  const prev=currentUser();
+  const users=getUsers();
   let user=users.find(u=> (email&&u.email===email) || (u.externalId===externalId));
   if(!user){
     user={ id:'u_'+uid(), email:email||null, name:name||null, externalId, provider, avatar:avatar||null,
@@ -239,13 +273,32 @@ function logout(){
 
 /* ========= 右上メニュー ========= */
 function bindMenu(){
-  const menuBtn = $('#menuBtn'), menuPanel = $('#menuPanel');
-  menuBtn.addEventListener('click',(e)=>{ e.preventDefault(); const on=menuPanel.classList.toggle('on'); menuBtn.setAttribute('aria-expanded',on?'true':'false'); menuPanel.setAttribute('aria-hidden',on?'false':'true'); });
-  menuPanel.querySelectorAll('[data-route]').forEach(b=> b.addEventListener('click',()=>{ menuPanel.classList.remove('on'); menuBtn.setAttribute('aria-expanded','false'); goto(b.dataset.route); }));
-  document.addEventListener('click',(e)=>{ if(!menuPanel.contains(e.target)&&e.target!==menuBtn){ menuPanel.classList.remove('on'); menuBtn.setAttribute('aria-expanded','false'); } });
+  const menuBtn = $('#menuBtn');
+  const menuPanel = $('#menuPanel');
+  menuBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    const on = menuPanel.classList.toggle('on');
+    menuBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    menuPanel.setAttribute('aria-hidden', on ? 'false' : 'true');
+  });
+  // 項目クリック→遷移
+  menuPanel.querySelectorAll('[data-route]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      menuPanel.classList.remove('on');
+      menuBtn.setAttribute('aria-expanded','false');
+      goto(b.dataset.route);
+    });
+  });
+  // 外側クリックで閉じる
+  document.addEventListener('click', (e)=>{
+    if(!menuPanel.contains(e.target) && e.target!==menuBtn){
+      menuPanel.classList.remove('on');
+      menuBtn.setAttribute('aria-expanded','false');
+    }
+  });
 }
 
-/* ========= クリック委譲 ========= */
+/* ========= クリック委譲（カード内ボタン等） ========= */
 function bindGlobalClickRouter(){
   document.addEventListener('click', (e)=>{
     const t=e.target;
@@ -253,7 +306,10 @@ function bindGlobalClickRouter(){
     const routeEl = t.closest('[data-route]');
     if (routeEl && !t.closest('#menuPanel')) { e.preventDefault(); goto(routeEl.dataset.route); return; }
 
-    const favEl=t.closest('[data-fav]'), applyEl=t.closest('[data-apply]'), detEl=t.closest('[data-detail]');
+    // 求人カード操作
+    const favEl   = t.closest('[data-fav]');
+    const applyEl = t.closest('[data-apply]');
+    const detEl   = t.closest('[data-detail]');
     if (favEl){ e.preventDefault(); const id=+favEl.dataset.fav; const s=getFavs(); s.has(id)?s.delete(id):s.add(id); setFavs(s); logEvent('fav_toggle',{jobId:id}); render(); return; }
     if (applyEl){ e.preventDefault(); openApply(+applyEl.dataset.apply); return; }
     if (detEl){ e.preventDefault(); openDetail(+detEl.dataset.detail); return; }
@@ -270,6 +326,7 @@ function setupRouting(){
     education:$('#view-education'),employers:$('#view-employers'),legal:$('#view-legal'),
     privacy:$('#view-privacy'),company:$('#view-company'),account:$('#view-account'),admin:$('#view-admin')
   });
+  // 上部タブ
   document.querySelectorAll('.tab').forEach(b=> b.addEventListener('click',()=>goto(b.dataset.route)));
 }
 function goto(route){
@@ -285,78 +342,22 @@ function goto(route){
   logEvent('view',{page:route});
 }
 
-/* ========= マルチドロップダウン（チェックボックス） ========= */
-let selCats=[], selFlags=[];
-
-function buildMultiDD(hostId, options, onChange){
-  const host = $('#'+hostId);
-  host.innerHTML = `
-    <button type="button" class="dd-btn">
-      <span class="summary placeholder">指定なし</span>
-      <span class="caret">▾</span>
-    </button>
-    <div class="dd-panel" role="listbox"></div>
-  `;
-  const btn = host.querySelector('.dd-btn');
-  const panel = host.querySelector('.dd-panel');
-  const summary = host.querySelector('.summary');
-
-  // options
-  options.forEach(opt=>{
-    const line = document.createElement('label');
-    line.className='opt';
-    line.innerHTML = `<input type="checkbox" value="${esc(opt)}"> <span>${esc(opt)}</span>`;
-    panel.appendChild(line);
-  });
-
-  // アクション（全解除/閉じる）
-  const actions = document.createElement('div');
-  actions.className='dd-actions';
-  actions.innerHTML = `<button type="button" class="btn" data-clear>指定なしにする</button><button type="button" class="btn" data-close>閉じる</button>`;
-  panel.appendChild(actions);
-
-  const updateSummary = ()=>{
-    const chosen = [...panel.querySelectorAll('input[type="checkbox"]:checked')].map(i=>i.value);
-    if(hostId==='catDD') selCats = chosen; else selFlags = chosen;
-    if(chosen.length===0){ summary.textContent='指定なし'; summary.classList.add('placeholder'); }
-    else{
-      summary.classList.remove('placeholder');
-      summary.textContent = chosen.length<=2 ? chosen.join(', ') : `${chosen.length}件選択`;
-    }
-    onChange();
-  };
-
-  btn.addEventListener('click',(e)=>{ e.stopPropagation(); document.querySelectorAll('.multi-dd.open').forEach(x=>x!==host&&x.classList.remove('open')); host.classList.toggle('open'); });
-  panel.addEventListener('change', updateSummary);
-  panel.addEventListener('click',(e)=>{
-    if(e.target && e.target.dataset.clear!==undefined){
-      panel.querySelectorAll('input[type="checkbox"]').forEach(i=> i.checked=false);
-      updateSummary();
-    }
-    if(e.target && e.target.dataset.close!==undefined){ host.classList.remove('open'); }
-  });
-
-  // 外側クリックで閉じる
-  document.addEventListener('click',(e)=>{ if(!host.contains(e.target)) host.classList.remove('open'); });
-
-  // 初期化
-  updateSummary();
-}
-
 /* ========= フィルタUI ========= */
 let curPage=1;
 function mountFilters(){
-  // 既存の選択肢（セレクト等）
-  ['q','sort','minWage','minDays','pageSize','internMin','f-open','favOnly']
+  // セレクトに職種/特徴を投入
+  const catSel=$('#catSel'), flagSel=$('#flagSel');
+  CATEGORIES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; catSel.appendChild(o); });
+  FLAGS.forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent=f; flagSel.appendChild(o); });
+
+  // 変更で再描画
+  ['q','sort','minWage','minDays','pageSize','internMin','f-open','favOnly','catSel','flagSel']
     .forEach(id=>{
-      const el=document.getElementById(id); if(!el) return;
-      const evt=(el.tagName==='INPUT' && el.type==='checkbox')?'change':'input';
+      const el = (id==='catSel'||id==='flagSel') ? $('#'+id) : document.getElementById(id);
+      if(!el) return;
+      const evt = (el.tagName==='INPUT' && el.type==='checkbox') ? 'change' : 'input';
       el.addEventListener(evt, ()=>render(1));
     });
-
-  // ★ 新しいチェックボックスDDを構築
-  buildMultiDD('catDD', CATEGORIES, ()=>render(1));
-  buildMultiDD('flagDD', FLAGS, ()=>render(1));
 
   // 初期描画
   render(1);
@@ -364,21 +365,19 @@ function mountFilters(){
 function resetFilters(){
   $('#q').value=''; $('#sort').value='new'; $('#minWage').value='0'; $('#minDays').value='2';
   $('#pageSize').value='10'; $('#internMin').value='0'; $('#f-open').checked=true; $('#favOnly').checked=false;
-  // DDの中身もリセット
-  selCats=[]; selFlags=[];
-  // チェック外しと要約更新
-  ['catDD','flagDD'].forEach(id=>{
-    const host=$('#'+id);
-    host.querySelectorAll('input[type="checkbox"]').forEach(i=> i.checked=false);
-    const s=host.querySelector('.summary'); s.textContent='指定なし'; s.classList.add('placeholder');
-  });
+  [...$('#catSel').options].forEach(o=>o.selected=false);
+  [...$('#flagSel').options].forEach(o=>o.selected=false);
 }
+function getSelectedValues(sel){ return [...sel.options].filter(o=>o.selected).map(o=>o.value); }
+
 function getFilters(){
+  const cats=getSelectedValues($('#catSel'));
+  const flags=getSelectedValues($('#flagSel'));
   return {
     q:($('#q').value||'').trim().toLowerCase(),
     sort:$('#sort').value, minWage:+$('#minWage').value, minDays:+$('#minDays').value,
     pageSize:+$('#pageSize').value, onlyOpen:$('#f-open').checked, favOnly:$('#favOnly').checked,
-    internMin:+$('#internMin').value, cats:[...selCats], flags:[...selFlags]
+    internMin:+$('#internMin').value, cats, flags
   };
 }
 function matchFlags(jobFlags, sel){ return sel.every(t=>jobFlags.includes(t)); }
@@ -398,6 +397,7 @@ function applyFilters(rows,f){
     }
     return true;
   });
+  // sort
   out = out.sort((a,b)=>{
     if(f.sort==='wage') return b.wage-a.wage;
     if(f.sort==='days') return a.days-b.days;
@@ -466,9 +466,16 @@ function renderRanking(){
     .sort((a,b)=> b.score - a.score || b.j.intern - a.j.intern || +new Date(b.j.created)-+new Date(a.j.created))
     .slice(0,20);
   const box=$('#rankbox'); if(!box) return; box.innerHTML='';
-  rows.forEach((r,i)=>{ const d=document.createElement('div'); d.className='item'; d.innerHTML=`#${i+1} <b>${esc(r.j.title)}</b> <span class="meta">／${esc(r.j.company)}・${esc(r.j.location)}・時給${r.j.wage}</span> <span class="meta">score:${r.score.toFixed(1)}</span>`; box.appendChild(d); });
+  rows.forEach((r,i)=>{
+    const d=document.createElement('div'); d.className='item';
+    d.innerHTML=`#${i+1} <b>${esc(r.j.title)}</b> <span class="meta">／${esc(r.j.company)}・${esc(r.j.location)}・時給${r.j.wage}</span> <span class="meta">score:${r.score.toFixed(1)}</span>`;
+    box.appendChild(d);
+  });
 }
-const ARTICLES=[{slug:'prep-guide',title:'応募準備ガイド',category:'応募準備ガイド',body:'# 応募準備\n- 履歴書\n- ポートフォリオ',tags:['履歴書','面接']},{slug:'choose-role',title:'業界・職種の選び方',category:'業界・職種の選び方',body:'# 職種選び',tags:['キャリア']}];
+const ARTICLES=[
+  {slug:'prep-guide',title:'応募準備ガイド',category:'応募準備ガイド',body:'# 応募準備\n- 履歴書\n- ポートフォリオ',tags:['履歴書','面接']},
+  {slug:'choose-role',title:'業界・職種の選び方',category:'業界・職種の選び方',body:'# 職種選び',tags:['キャリア']}
+];
 const ARTICLE_CATS=['応募準備ガイド','業界・職種の選び方'];
 function renderArticles(){
   const sel=$('#articleCat'), aq=$('#articleQ'), list=$('#articleList'), detail=$('#articleDetail'); if(!sel) return;
@@ -483,7 +490,8 @@ function renderArticles(){
       list.appendChild(card);
     });
     list.onclick=(e)=>{ const slug=e.target.closest('[data-slug]')?.dataset.slug; if(!slug) return;
-      const art=ARTICLES.find(x=>x.slug===slug); const lines=art.body.split(/\n/); const toc=lines.filter(l=>/^#{1,3}\s/.test(l)).map(l=>l.replace(/^#+\s/,'')); detail.innerHTML=`<h3>${esc(art.title)}</h3><div class="meta">${esc(art.category)} ｜ ${esc(art.tags.join(', '))}</div><hr/><b>目次</b><ul>${toc.map(t=>`<li>${esc(t)}</li>`).join('')}</ul><pre class="legal">${esc(art.body)}</pre>`; detail.style.display='block';
+      const art=ARTICLES.find(x=>x.slug===slug); const lines=art.body.split(/\n/);
+      const toc=lines.filter(l=>/^#{1,3}\s/.test(l)).map(l=>l.replace(/^#+\s/,'')); detail.innerHTML=`<h3>${esc(art.title)}</h3><div class="meta">${esc(art.category)} ｜ ${esc(art.tags.join(', '))}</div><hr/><b>目次</b><ul>${toc.map(t=>`<li>${esc(t)}</li>`).join('')}</ul><pre class="legal">${esc(art.body)}</pre>`; detail.style.display='block';
     };
   };
   if(!sel.onchange){ sel.onchange=draw; aq.oninput=draw; } draw();
@@ -525,16 +533,21 @@ function openDetail(id){
     <img class="thumb" style="width:100%;border-radius:12px;margin:8px 0" src="${esc(j.image||'https://picsum.photos/seed/detail/800/450')}" alt="">
     <div class="dim">${esc(j.company)}・${esc(j.location)}｜時給${j.wage}円｜週${j.days}〜｜在籍${j.intern}｜${fmtDate(j.created)}</div>
     <p>${esc(j.desc)}</p>
-    <div class="row right">${j.open?`<button type="button" class="btn primary" id="goApply">エントリー</button>`:''}<button type="button" class="btn" id="favBtn">★</button></div>
-  `,()=>{
-    $('#favBtn').onclick=()=>{ const s=getFavs(); s.add(j.id); setFavs(s); toast('★追加'); };
-    const btn=$('#goApply'); if(btn) btn.onclick=()=>{ closeModal(); openApply(j.id); };
-  });
+    <div class="row right">
+      ${j.open?`<button type="button" class="btn primary" id="goApply">エントリー</button>`:''}
+      <button type="button" class="btn" id="favBtn">★</button>
+    </div>`,()=>{
+      $('#favBtn').onclick=()=>{ const s=getFavs(); s.add(j.id); setFavs(s); toast('★追加'); };
+      const btn=$('#goApply'); if(btn) btn.onclick=()=>{ closeModal(); openApply(j.id); };
+    });
 }
 function openApply(jobId){
-  const u=currentUser(); if(!u.email && !u.name){ openLoginCard('ログイン'); return; }
-  const users = getUsers(); const me = users.find(x=>x.id===u.id) || {};
+  const u=currentUser();
+  if(!u.email && !u.name){ openLoginCard('ログイン'); return; }
+  const users = getUsers();
+  const me = users.find(x=>x.id===u.id) || {};
 
+  // すべて選択式 + 日付はカレンダー（type=date）
   showModal(`
     <h3>応募前の確認</h3>
     <div class="meta">必要事項をご入力ください（次回以降は自動で呼び出されます）。</div>
@@ -559,15 +572,26 @@ function openApply(jobId){
         </label>
         <label>電話番号<input name="phone" class="input" inputmode="tel" /></label>
         <label>就業可能日数
-          <select name="days" class="input"><option ${me.days==='週2〜'?'selected':''}>週2〜</option><option ${me.days==='週3〜'?'selected':''}>週3〜</option><option ${me.days==='週4〜'?'selected':''}>週4〜</option></select>
+          <select name="days" class="input">
+            <option ${me.days==='週2〜'?'selected':''}>週2〜</option>
+            <option ${me.days==='週3〜'?'selected':''}>週3〜</option>
+            <option ${me.days==='週4〜'?'selected':''}>週4〜</option>
+          </select>
         </label>
         <label>希望時給
-          <select name="wishWage" class="input"><option ${me.wishWage==='1200円〜'?'selected':''}>1200円〜</option><option ${me.wishWage==='1500円〜'?'selected':''}>1500円〜</option><option ${me.wishWage==='2000円〜'?'selected':''}>2000円〜</option><option ${me.wishWage==='2500円〜'?'selected':''}>2500円〜</option></select>
+          <select name="wishWage" class="input">
+            <option ${me.wishWage==='1200円〜'?'selected':''}>1200円〜</option>
+            <option ${me.wishWage==='1500円〜'?'selected':''}>1500円〜</option>
+            <option ${me.wishWage==='2000円〜'?'selected':''}>2000円〜</option>
+            <option ${me.wishWage==='2500円〜'?'selected':''}>2500円〜</option>
+          </select>
         </label>
         <label>自己PR（任意）<textarea name="message" class="input" rows="4" placeholder="簡単な自己紹介や志望動機">${esc(me.lastMessage||'')}</textarea></label>
       </div>
     </form>
-    <div class="row right"><button type="button" id="doApply" class="btn primary">この内容で応募する</button></div>
+    <div class="row right">
+      <button type="button" id="doApply" class="btn primary">この内容で応募する</button>
+    </div>
   `, ()=>{
     $('#doApply').onclick=()=>{
       const fd = new FormData($('#preApplyForm'));
@@ -581,33 +605,52 @@ function openApply(jobId){
         lastMessage: fd.get('message')
       };
       if(!profile.name || !profile.birth){ toast('氏名と生年月日は必須です'); return; }
+
       const arr = getUsers(); let user = arr.find(x=>x.id===u.id);
-      if(!user){ user = { id:u.id, email:u.email||null, name:profile.name, provider:u.provider||'local', createdAt:nowISO(), lastLoginAt:nowISO(), totalLogins:1 }; arr.push(user); }
-      Object.assign(user, profile); setUsers(arr);
+      if(!user){
+        user = { id:u.id, email:u.email||null, name:profile.name, provider:u.provider||'local', createdAt:nowISO(), lastLoginAt:nowISO(), totalLogins:1 };
+        arr.push(user);
+      }
+      Object.assign(user, profile);
+      setUsers(arr);
 
       const a=getApps();
       if(a.some(x=>x.userId===u.id && x.jobId===jobId)){ toast('この求人には既に応募済み'); return; }
       const job = allJobs().find(j=>j.id===jobId);
-      a.push({ id: uid(), jobId, userId: u.id, email: u.email||"", name: profile.name||u.name||"", jobTitle: job?.title||'', jobCompany: job?.company||'', ts: nowISO(), message: profile.lastMessage||"", status:'pending' });
+      a.push({ id: uid(), jobId, userId: u.id, email: u.email||"", name: profile.name||u.name||"",
+        jobTitle: job?.title||'', jobCompany: job?.company||'', ts: nowISO(), message: profile.lastMessage||"", status:'pending' });
       setApps(a);
 
-      logEvent('apply',{jobId}); toast('応募を記録しました（プロフィールも更新）'); closeModal();
+      logEvent('apply',{jobId});
+      toast('応募を記録しました（プロフィールも更新）');
+      closeModal();
     };
   });
 }
 
-/* ========= 採用担当者 ========= */
+/* ========= 採用担当者：会社登録 & 掲載前編集 ========= */
 function initEmployerForm(){
   const form = $('#employerForm'); if(!form) return;
-  const btn = $('#saveEmployer'); const note = $('#employerNote');
+  const btn = $('#saveEmployer');
+  const note = $('#employerNote');
   btn.onclick = ()=>{
     const fd = new FormData(form);
-    if(!fd.get('company') || !fd.get('pic') || !fd.get('email') || !fd.get('agree')){ toast('必須項目を入力してください'); return; }
-    const rec = { id: 'emp_'+uid(), ts: nowISO(), company: fd.get('company'), pic: fd.get('pic'), email: fd.get('email'), tel: fd.get('tel'), pref: fd.get('pref'), size: fd.get('size'), industry: fd.get('industry'), url: fd.get('url'), billing: fd.get('billing'), agree: !!fd.get('agree') };
+    if(!fd.get('company') || !fd.get('pic') || !fd.get('email') || !fd.get('agree')){
+      toast('必須項目を入力してください'); return;
+    }
+    const rec = {
+      id: 'emp_'+uid(), ts: nowISO(),
+      company: fd.get('company'), pic: fd.get('pic'),
+      email: fd.get('email'), tel: fd.get('tel'),
+      pref: fd.get('pref'), size: fd.get('size'), industry: fd.get('industry'),
+      url: fd.get('url'), billing: fd.get('billing'), agree: !!fd.get('agree')
+    };
     const arr = getEmployers(); arr.push(rec); setEmployers(arr);
-    note.textContent = '登録を受け付けました（シートに同期）'; toast('会社情報を登録しました');
+    note.textContent = '登録を受け付けました（シートに同期）';
+    toast('会社情報を登録しました');
   };
 
+  // 新規求人（ドラフト作成）
   $('#openNewJob').onclick = ()=>{
     showModal(`
       <h3>新規求人（ドラフト）</h3>
@@ -628,7 +671,10 @@ function initEmployerForm(){
           <label>都道府県<input name="prefecture" class="input" value="東京都"></label>
           <label>区市<input name="city" class="input" value=""></label>
           <label>ジョブタイプ
-            <select name="jobType" class="input"><option value="regular" selected>通常</option><option value="education">教育系</option></select>
+            <select name="jobType" class="input">
+              <option value="regular" selected>通常</option>
+              <option value="education">教育系</option>
+            </select>
           </label>
           <label>画像<input name="image" type="file" accept="image/*" class="input"></label>
           <label class="row center-left"><input type="checkbox" name="open" checked> <span>募集中で作成</span></label>
@@ -639,7 +685,8 @@ function initEmployerForm(){
       $('#saveDraft').onclick=()=>{
         const fd = new FormData($('#draftForm'));
         const payload = {
-          id:'d_'+uid(), title:fd.get('title'), company:fd.get('company'), location:fd.get('location'),
+          id:'d_'+uid(),
+          title:fd.get('title'), company:fd.get('company'), location:fd.get('location'),
           category:fd.get('category'), desc:fd.get('desc'), wage:+fd.get('wage')||0, days:+fd.get('days')||0,
           flags:(fd.get('flags')||'').split(',').map(s=>s.trim()).filter(Boolean),
           prefecture:fd.get('prefecture')||'', city:fd.get('city')||'',
@@ -651,7 +698,9 @@ function initEmployerForm(){
           const drafts = getDrafts(); drafts.push(payload); setDrafts(drafts);
           toast('ドラフト保存しました'); closeModal(); drawDraftList();
         };
-        if(file && file.size){ const fr=new FileReader(); fr.onload=()=>finalize(fr.result); fr.readAsDataURL(file); } else finalize(null);
+        if(file && file.size){
+          const fr=new FileReader(); fr.onload=()=>finalize(fr.result); fr.readAsDataURL(file);
+        }else finalize(null);
       };
     });
   };
@@ -659,51 +708,66 @@ function initEmployerForm(){
   drawDraftList();
 }
 function drawDraftList(){
-  const host=$('#draftList'); if(!host) return;
-  const drafts=getDrafts();
+  const host = $('#draftList'); if(!host) return;
+  const drafts = getDrafts();
   host.innerHTML = drafts.length ? '' : '<div class="meta">ドラフトなし</div>';
   drafts.forEach(d=>{
     const el=document.createElement('div'); el.className='card';
     el.innerHTML = `
       <img class="thumb" src="${esc(d.image)}" alt="">
-      <div style="padding:12px"><b>${esc(d.title)}</b> <span class="meta">／${esc(d.company)}・${esc(d.location)}</span>
-      <div class="dim">職種:${esc(d.category)}｜時給${d.wage}｜週${d.days}〜｜${esc(d.prefecture)} ${esc(d.city)}</div></div>
-      <div class="row right" style="padding:0 12px 12px"><button class="btn" data-pub="${d.id}">公開</button><button class="btn danger" data-del="${d.id}">削除</button></div>`;
+      <div style="padding:12px">
+        <b>${esc(d.title)}</b> <span class="meta">／${esc(d.company)}・${esc(d.location)}</span>
+        <div class="dim">職種:${esc(d.category)}｜時給${d.wage}｜週${d.days}〜｜${esc(d.prefecture)} ${esc(d.city)}</div>
+      </div>
+      <div class="row right" style="padding:0 12px 12px">
+        <button class="btn" data-pub="${d.id}">公開</button>
+        <button class="btn danger" data-del="${d.id}">削除</button>
+      </div>`;
     host.appendChild(el);
   });
-  host.onclick=(e)=>{
-    const pub=e.target.closest('[data-pub]')?.dataset.pub;
-    const del=e.target.closest('[data-del]')?.dataset.del;
-    if(pub) publishDraft(pub);
+  host.onclick = (e)=>{
+    const pub = e.target.closest('[data-pub]')?.dataset.pub;
+    const del = e.target.closest('[data-del]')?.dataset.del;
+    if(pub){ publishDraft(pub); }
     if(del){ setDrafts(getDrafts().filter(x=>x.id!==del)); toast('削除しました'); drawDraftList(); }
   };
 }
 
-/* ========= 管理 ========= */
+/* ========= 管理（応募承認/ドラフト公開） ========= */
 function drawAdmin(){
-  const apps=getApps().slice().sort((a,b)=> +new Date(b.ts)-+new Date(a.ts));
-  const wrap=$('#adminApps'); wrap.innerHTML = apps.length ? '' : '<div class="meta">承認待ちはありません</div>';
+  // 応募
+  const apps = getApps().slice().sort((a,b)=> +new Date(b.ts)-+new Date(a.ts));
+  const wrap = $('#adminApps'); wrap.innerHTML = apps.length ? '' : '<div class="meta">承認待ちはありません</div>';
   apps.forEach(a=>{
     const job = allJobs().find(j=>j.id===a.jobId);
     const item=document.createElement('div'); item.className='item';
-    item.innerHTML=`
+    item.innerHTML = `
       <div><b>${esc(a.name||'匿名')}</b> さん — <span class="meta">${new Date(a.ts).toLocaleString()}</span></div>
       <div class="dim">応募：${esc(job?.title||a.jobTitle||'不明')} ／ ${esc(job?.company||a.jobCompany||'')}</div>
-      <div class="row gap-xs"><span class="badge">状態: ${esc(a.status||'pending')}</span><button class="btn" data-approve="${a.id}">承認</button><button class="btn danger" data-reject="${a.id}">却下</button></div>`;
+      <div class="row gap-xs">
+        <span class="badge">状態: ${esc(a.status||'pending')}</span>
+        <button class="btn" data-approve="${a.id}">承認</button>
+        <button class="btn danger" data-reject="${a.id}">却下</button>
+      </div>`;
     wrap.appendChild(item);
   });
   wrap.onclick=(e)=>{
-    const id=e.target.dataset.approve || e.target.dataset.reject; if(!id) return;
-    const st=e.target.dataset.approve ? 'approved' : 'rejected';
-    const arr=getApps(); const rec=arr.find(x=>x.id===id); if(rec){ rec.status=st; setApps(arr); toast(`状態を${st}に更新`); drawAdmin(); }
+    const id = e.target.dataset.approve || e.target.dataset.reject;
+    if(!id) return;
+    const st = e.target.dataset.approve ? 'approved' : 'rejected';
+    const arr = getApps(); const rec = arr.find(x=>x.id===id); if(rec){ rec.status=st; setApps(arr); toast(`状態を${st}に更新`); drawAdmin(); }
   };
 
-  const dhost=$('#adminDrafts'); dhost.innerHTML='';
-  const drafts=getDrafts();
+  // ドラフト
+  const dhost = $('#adminDrafts'); dhost.innerHTML='';
+  const drafts = getDrafts();
   if(!drafts.length){ dhost.innerHTML='<div class="meta">公開可能なドラフトはありません</div>'; return; }
   drafts.forEach(d=>{
     const el=document.createElement('div'); el.className='card';
-    el.innerHTML=`<img class="thumb" src="${esc(d.image)}" alt=""><div style="padding:12px"><b>${esc(d.title)}</b> <span class="meta">／${esc(d.company)}</span></div><div class="row right" style="padding:0 12px 12px"><button class="btn" data-pub="${d.id}">公開</button></div>`;
+    el.innerHTML = `
+      <img class="thumb" src="${esc(d.image)}" alt="">
+      <div style="padding:12px"><b>${esc(d.title)}</b> <span class="meta">／${esc(d.company)}</span></div>
+      <div class="row right" style="padding:0 12px 12px"><button class="btn" data-pub="${d.id}">公開</button></div>`;
     dhost.appendChild(el);
   });
   dhost.onclick=(e)=>{ const pub=e.target.closest('[data-pub]')?.dataset.pub; if(pub) publishDraft(pub); };
@@ -712,18 +776,26 @@ function drawAdmin(){
 /* ========= アカウント ========= */
 function renderAccount(){
   const u=currentUser(); const users=getUsers(); const me=users.find(x=>x.id===u.id)||{};
-  $('#acctBox').innerHTML = u.email||u.name ? `<div>ユーザー：<b>${esc(u.name||u.email)}</b> <span class="meta">（${esc(u.provider||'local')}）</span></div>` : `<div class="meta">未ログイン（ゲストID：${esc(u.id)}）</div>`;
+  $('#acctBox').innerHTML = u.email||u.name
+    ? `<div>ユーザー：<b>${esc(u.name||u.email)}</b> <span class="meta">（${esc(u.provider||'local')}）</span></div>`
+    : `<div class="meta">未ログイン（ゲストID：${esc(u.id)}）</div>`;
+
   const form=$('#profileForm');
   const setVal=(n,v)=>{ const el=form.querySelector(`[name="${n}"]`); if(el) el.value=v||''; };
   ['name','school','grade','major','wishRole','wishArea','wishWage','days','skills','links','bio'].forEach(k=> setVal(k, me[k] ?? (k==='name'?u.name:'')));
+
   const prev=$('#avatarPreview'); if(prev){ prev.classList.toggle('hidden', !u.avatar); if(u.avatar){ prev.src=u.avatar; } }
 
   $('#saveProfile').onclick=()=>{
     const data=Object.fromEntries(new FormData(form));
     const file=form.querySelector('[name="avatar"]').files[0];
     const proceed=(avatarData)=>{
-      const arr=getUsers(); let user=arr.find(x=>x.id===u.id);
-      if(!user){ user={ id:u.id, email:u.email||null, name:data.name||u.name||null, provider:u.provider||'local', createdAt:nowISO(), lastLoginAt:nowISO(), totalLogins:1 }; arr.push(user); }
+      const arr=getUsers();
+      let user=arr.find(x=>x.id===u.id);
+      if(!user){
+        user={ id:u.id, email:u.email||null, name:data.name||u.name||null, provider:u.provider||'local', createdAt:nowISO(), lastLoginAt:nowISO(), totalLogins:1 };
+        arr.push(user);
+      }
       Object.assign(user,{ name:data.name||user.name, school:data.school, grade:data.grade, major:data.major, wishRole:data.wishRole, wishArea:data.wishArea, wishWage:data.wishWage, days:data.days, skills:data.skills, links:data.links, bio:data.bio });
       if(avatarData){ user.avatar=avatarData; setJSON(LS.user,{...currentUser(), avatar:avatarData}); $('#avatarPreview').src=avatarData; $('#avatarPreview').classList.remove('hidden'); }
       setUsers(arr); toast('プロフィールを保存しました');
@@ -753,15 +825,22 @@ function init(){
   setupRouting();
   mountFilters();
 
-  refreshLogin(); render(1); renderRegion(); renderRanking();
+  refreshLogin();
+  render(1);
+  renderRegion();
+  renderRanking();
   logEvent('view',{page:'jobs'});
 
   showFirstVisitPop();
 
+  // 初回同期
   scheduleSync('users'); scheduleSync('events'); scheduleSync('applications');
   initEmployerForm();
 }
 
+// DOM 後に必ず実行
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init, { once: true });
-} else { init(); }
+} else {
+  init();
+}

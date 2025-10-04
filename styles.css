@@ -1,7 +1,15 @@
 :root{
-  --bg:#f6f9ff; --panel:#ffffff; --ink:#0f172a; --muted:#64748b;
-  --brand:#0b5cff; --brand-weak:#dfe7ff; --line:#e5e7eb; --danger:#e11d48;
-  --space:clamp(10px, 2vw, 20px); --radius:14px; --shadow:0 8px 24px rgba(11,92,255,.08);
+  --bg:#f6f9ff;
+  --panel:#ffffff;
+  --ink:#0f172a;
+  --muted:#64748b;
+  --brand:#0b5cff;
+  --brand-weak:#dfe7ff;
+  --line:#e5e7eb;
+  --danger:#e11d48;
+  --space:clamp(10px, 2vw, 20px);
+  --radius:14px;
+  --shadow:0 8px 24px rgba(11,92,255,.08);
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -23,9 +31,14 @@ body{
 .site-header{ padding:var(--space) 0 }
 .logo{ font-weight:800; color:var(--brand); letter-spacing:.2px }
 .tabs{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; margin-inline:var(--space) }
-.tab{ padding:10px 14px; border:1px solid var(--brand-weak); background:#fff; border-radius:10px; cursor:pointer; font-weight:600; color:#213; }
+.tab{
+  padding:10px 14px; border:1px solid var(--brand-weak); background:#fff; border-radius:10px; cursor:pointer;
+  font-weight:600; color:#213;
+}
 .tab.active{ background:linear-gradient(135deg,#e9f1ff,#fff); border-color:#cfe0ff; box-shadow:var(--shadow) }
-.btn{ padding:10px 14px; border-radius:10px; border:1px solid var(--line); background:#fff; cursor:pointer; font-weight:600 }
+.btn{
+  padding:10px 14px; border-radius:10px; border:1px solid var(--line); background:#fff; cursor:pointer; font-weight:600
+}
 .btn.primary{ background:linear-gradient(135deg,#3b82f6,#60a5fa); color:#fff; border:none }
 .btn.danger{ background:#fff0f3; color:#b91c1c; border:1px solid #fecdd3 }
 .btn.ghost{ background:#fff; border:1px solid var(--brand-weak) }
@@ -33,14 +46,24 @@ body{
 
 .meta{ color:var(--muted); font-size:14px }
 .label{ color:var(--muted); font-size:12px; display:block; margin-bottom:4px }
-.input{ width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; font:inherit }
+.input{
+  width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff;
+  font:inherit
+}
 
 .hero{ display:grid; gap:var(--space); grid-template-columns:1fr; padding:var(--space) 0 }
 .hero-left h1{ font-size:clamp(22px, 4vw, 36px); margin:.2em 0 .4em }
 .hero-left p{ color:var(--muted); margin:0 0 8px }
 .brand{ color:var(--brand) }
-.hero-right .mock{ width:100%; aspect-ratio:4/3; border-radius:20px; border:1px solid var(--brand-weak); background:linear-gradient(135deg,#e7f0ff,#ffffff); box-shadow:var(--shadow) }
-@media (min-width: 900px){ .hero{ grid-template-columns:1.2fr 1fr } }
+.hero-right .mock{
+  width:100%; aspect-ratio:4/3; border-radius:20px; border:1px solid var(--brand-weak);
+  background:
+    linear-gradient(135deg,#e7f0ff,#ffffff);
+  box-shadow:var(--shadow)
+}
+@media (min-width: 900px){
+  .hero{ grid-template-columns:1.2fr 1fr }
+}
 
 /* メニュー */
 .menu-wrap{ position:relative }
@@ -49,23 +72,32 @@ body{
   border-radius:12px; box-shadow:var(--shadow); padding:6px; min-width:220px; display:none; z-index:50
 }
 .menu-panel.on{ display:block }
-.menu-panel button{ display:block; width:100%; text-align:left; border:none; background:transparent; padding:10px 12px; border-radius:8px; cursor:pointer }
+.menu-panel button{
+  display:block; width:100%; text-align:left; border:none; background:transparent; padding:10px 12px; border-radius:8px; cursor:pointer
+}
 .menu-panel button:hover{ background:#f1f5ff }
 
-/* 汎用パネル */
-.panel{ background:var(--panel); border:1px solid var(--brand-weak); border-radius:var(--radius); padding:var(--space); box-shadow:var(--shadow) }
+.panel{
+  background:var(--panel); border:1px solid var(--brand-weak); border-radius:var(--radius); padding:var(--space); box-shadow:var(--shadow)
+}
 .panel.soft{ box-shadow:none; background:#fff }
 .divider{ border:none; border-top:1px solid var(--line); margin:var(--space) 0 }
 
 .filter-grid{ display:grid; gap:var(--space); grid-template-columns:repeat(1,minmax(0,1fr)) }
 .filter-grid.small{ grid-template-columns:1fr 1fr }
 .grid-2col{ display:grid; gap:var(--space); grid-template-columns:1fr 1fr }
-@media (max-width: 720px){ .grid-2col{ grid-template-columns:1fr } .filter-grid.small{ grid-template-columns:1fr } }
+@media (max-width: 720px){
+  .grid-2col{ grid-template-columns:1fr }
+  .filter-grid.small{ grid-template-columns:1fr }
+}
 
 /* カード */
 .cards{ display:grid; gap:var(--space); grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)) }
 .cards.slim{ grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)) }
-.card{ display:flex; flex-direction:column; gap:10px; background:#fff; border:1px solid var(--brand-weak); border-radius:14px; overflow:hidden }
+.card{
+  display:flex; flex-direction:column; gap:10px; background:#fff; border:1px solid var(--brand-weak);
+  border-radius:14px; overflow:hidden
+}
 .card .thumb{ width:100%; aspect-ratio:16/9; object-fit:cover; background:#eef2ff }
 .badge{ display:inline-block; padding:3px 8px; background:#eef4ff; border:1px solid #dbe7ff; color:#204; border-radius:999px; font-size:12px; margin-right:4px }
 .dim{ color:var(--muted); font-size:14px }
@@ -85,36 +117,24 @@ body{
 .avatar{ width:56px; height:56px; border-radius:999px; object-fit:cover; border:1px solid var(--brand-weak) }
 
 /* モーダル */
-.modal{ position:fixed; inset:0; display:none; place-items:center; background:rgba(9,16,28,.28); padding:var(--space); z-index:1000 }
+.modal{
+  position:fixed; inset:0; display:none; place-items:center; background:rgba(9,16,28,.28); padding:var(--space); z-index:1000
+}
 .modal.show{ display:grid }
-.modal-box{ width:min(92vw, 720px); background:#fff; border-radius:16px; padding:var(--space); border:1px solid var(--brand-weak); box-shadow:var(--shadow) }
+.modal-box{
+  width:min(92vw, 720px); background:#fff; border-radius:16px; padding:var(--space); border:1px solid var(--brand-weak); box-shadow:var(--shadow)
+}
 
 /* トースト */
-.toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#111827; color:#fff; padding:10px 14px; border-radius:10px; display:none; z-index:1200 }
-
-/* カスタム・マルチドロップダウン */
-.multi-dd{ position:relative }
-.multi-dd .dd-btn{
-  width:100%; display:flex; align-items:center; justify-content:space-between;
-  gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; cursor:pointer;
+.toast{
+  position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#111827; color:#fff; padding:10px 14px; border-radius:10px; display:none; z-index:1200
 }
-.multi-dd .summary{ flex:1; text-align:left }
-.multi-dd .placeholder{ color:var(--muted) }
-.multi-dd .caret{ opacity:.6 }
-.multi-dd .dd-panel{
-  position:absolute; left:0; right:0; top:calc(100% + 6px); background:#fff; border:1px solid var(--brand-weak);
-  border-radius:12px; box-shadow:var(--shadow); padding:8px; display:none; max-height:300px; overflow:auto; z-index:40
-}
-.multi-dd.open .dd-panel{ display:block }
-.multi-dd .opt{ display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px }
-.multi-dd .opt:hover{ background:#f6f9ff }
-.multi-dd .dd-actions{ display:flex; justify-content:space-between; gap:8px; padding:6px 4px 0 }
-.multi-dd .dd-actions .btn{ padding:6px 10px; font-weight:600 }
 
-/* フォーカス */
+/* フォーカス/アクセシビリティ */
 :focus-visible{ outline:2px solid #60a5fa; outline-offset:2px }
 
 /* 余白微調整 */
-h2{ margin:.4rem 0 1rem } h3{ margin:.2rem 0 .6rem }
-label{ display:block } label > .input, label > select, label > textarea{ margin-top:6px }
-.hidden{ display:none !important }
+h2{ margin:.4rem 0 1rem }
+h3{ margin:.2rem 0 .6rem }
+label{ display:block }
+label > .input, label > select, label > textarea{ margin-top:6px }
