@@ -2,98 +2,77 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>UT-Board風：フル機能デモ</title>
-
-  <!-- Tailwind（CDN） -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- 最小カスタムCSS -->
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>長期インターン</title>
   <link rel="stylesheet" href="./styles.css"/>
 
-  <!-- SDK（任意：キー未設定でもメールログインは動作） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <!-- SDK（必要な時だけ設定） -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
   <script src="https://static.line-scdn.net/liff/edge/versions/2.22.0/sdk.js" defer></script>
 </head>
-<body class="bg-[#f6f9ff] text-slate-900 antialiased">
-  <!-- ヘッダー＋ヒーロー（レスポンシブ最適化） -->
-  <header class="relative">
-    <div class="absolute inset-0 -z-10">
-      <div class="w-[140%] h-[120%] -rotate-6 -translate-y-10 bg-gradient-to-br from-[#e7f0ff] via-[#f6fbff] to-white"></div>
-      <div class="absolute -right-24 -top-24 w-72 h-72 rounded-full bg-[#dfeaff] opacity-60 blur-3xl"></div>
-      <div class="absolute left-12 -bottom-20 w-80 h-80 rounded-full bg-[#bcd3ff] opacity-30 blur-3xl"></div>
-    </div>
+<body>
+  <!-- ヘッダー -->
+  <header class="site-header">
+    <div class="container row between center">
+      <div class="logo">長期インターン</div>
 
-    <div class="max-w-[1200px] mx-auto px-4 sm:px-5 pt-4 sm:pt-6">
-      <div class="flex items-center gap-2 sm:gap-3">
-        <div class="text-xl sm:text-2xl font-extrabold text-[#0b5cff] tracking-tight">UT-Board 風</div>
+      <!-- タブ（2列レイアウト） -->
+      <nav class="tabs" id="topTabs">
+        <button class="tab active" data-route="jobs">求人を探す</button>
+        <button class="tab" data-route="map">地域ナビ</button>
+        <button class="tab" data-route="ranking">人気ランキング</button>
+        <button class="tab" data-route="articles">記事</button>
+        <button class="tab" data-route="education">教育系</button>
+        <button class="tab" data-route="account">アカウント</button>
+      </nav>
 
-        <!-- グローバルナビ（横並び→モバイルは折返し） -->
-        <nav class="flex flex-wrap gap-1 ml-2">
-          <button class="navbtn active" data-route="jobs">求人を探す</button>
-          <button class="navbtn" data-route="map">地域ナビ</button>
-          <button class="navbtn" data-route="ranking">人気ランキング</button>
-          <button class="navbtn" data-route="articles">記事</button>
-          <button class="navbtn" data-route="education">教育系</button>
-          <button class="navbtn" data-route="account">アカウント</button>
-        </nav>
-
-        <div class="spacer flex-1"></div>
-
-        <!-- 右上メニュー（採用/法務/会社/管理） -->
-        <div class="menu relative">
-          <button id="menuBtn" class="btn" aria-haspopup="true" aria-expanded="false">メニュー ▾</button>
-          <div id="menuPanel" class="menu__panel" role="menu">
-            <button type="button" class="menu-item" data-route="employers">採用担当者様</button>
-            <button type="button" class="menu-item" data-route="admin">管理</button>
-            <button type="button" class="menu-item" data-route="legal">利用規約</button>
-            <button type="button" class="menu-item" data-route="privacy">プライバシー</button>
-            <button type="button" class="menu-item" data-route="company">会社情報</button>
+      <div class="row gap-xs">
+        <div class="menu-wrap">
+          <button class="btn ghost" id="menuBtn" aria-haspopup="true" aria-expanded="false">メニュー ▾</button>
+          <div class="menu-panel" id="menuPanel" role="menu" aria-hidden="true">
+            <button role="menuitem" data-route="employers">採用担当者様</button>
+            <button role="menuitem" data-route="legal">利用規約</button>
+            <button role="menuitem" data-route="privacy">プライバシー</button>
+            <button role="menuitem" data-route="company">会社情報</button>
+            <hr/>
+            <button role="menuitem" data-route="admin">管理（承認）</button>
           </div>
         </div>
 
-        <!-- 認証 -->
         <span id="loginState" class="meta">未ログイン</span>
         <button id="btnSignup" class="btn">新規登録</button>
         <button id="btnLogin"  class="btn">ログイン</button>
-        <button id="btnLogout" class="btn hidden">ログアウト</button>
+        <button id="btnLogout" class="btn danger" style="display:none">ログアウト</button>
       </div>
+    </div>
 
-      <!-- ヒーロー帯 -->
-      <div class="mt-4 sm:mt-6 rounded-2xl border border-[#dfe7ff] bg-white/80 backdrop-blur shadow-sm p-4 sm:p-6">
-        <div class="grid md:grid-cols-[1.2fr,1fr] gap-5 items-center">
-          <div>
-            <h1 class="text-2xl sm:text-3xl md:text-4xl font-extrabold leading-tight">
-              シンプルに、<span class="text-[#0b5cff]">“良い案件”</span>へ最短で。
-            </h1>
-            <p class="text-slate-600 mt-1 sm:mt-2">
-              フリーワードと簡単フィルタで、いま欲しい長期インターン・バイトをすぐに見つける。
-            </p>
-            <div class="flex gap-2 mt-3">
-              <button class="btn primary" data-route="jobs">求人を探す</button>
-              <button class="btn" data-route="ranking">人気ランキング</button>
-            </div>
-          </div>
-          <div class="relative">
-            <div class="aspect-[4/3] rounded-2xl bg-gradient-to-br from-[#e7f0ff] to-white border border-[#dfe7ff] shadow-sm overflow-hidden">
-              <img src="https://picsum.photos/seed/utb-hero/800/600" alt="" class="w-full h-full object-cover opacity-90">
-            </div>
-          </div>
+    <!-- ヒーロー -->
+    <div class="container hero">
+      <div class="hero-left">
+        <h1>誰もが<span class="brand">最も輝ける場所を</span>見つけよう</h1>
+        <p>自分にあった長期インターンがすぐに見つかるプラットフォーム</p>
+        <div class="row gap-xs">
+          <button class="btn primary" data-route="jobs">求人を探す</button>
+          <button class="btn" data-route="ranking">人気ランキング</button>
         </div>
       </div>
+      <div class="hero-right"><div class="mock"></div></div>
     </div>
   </header>
 
-  <!-- メイン -->
-  <main class="max-w-[1200px] mx-auto px-4 sm:px-5 mt-5 sm:mt-6">
+  <main class="container">
     <!-- 求人一覧 -->
     <section id="view-jobs" class="panel" style="display:block">
-      <h2 class="section-title-lg">求人一覧</h2>
+      <h2>求人一覧</h2>
 
-      <!-- フィルタ帯（レスポンシブ） -->
-      <div class="grid gap-3 md:grid-cols-[1fr,210px,170px,150px]">
+      <!-- 選択肢ベースのフィルタ -->
+      <form class="filter-grid" id="jobFilters" onsubmit="return false">
         <input id="q" class="input" placeholder="フリーワード（会社 / タイトル / 説明 / タグ）"/>
+
         <select id="sort" class="input">
           <option value="new">新着順</option>
           <option value="recommend">おすすめ順</option>
@@ -102,6 +81,7 @@
           <option value="intern">インターン生が多い順</option>
           <option value="fav">人気（★/応募/PV）順</option>
         </select>
+
         <select id="minWage" class="input">
           <option value="0">時給 下限なし</option>
           <option value="1200">1200円〜</option>
@@ -109,201 +89,226 @@
           <option value="2000">2000円〜</option>
           <option value="2500">2500円〜</option>
         </select>
+
         <select id="minDays" class="input">
           <option value="2">週2〜</option><option value="3">週3〜</option><option value="4">週4〜</option>
         </select>
-      </div>
 
-      <div class="section-caption">職種</div>
-      <div id="catBox" class="row"></div>
+        <!-- ★ ここを “指定なし→チェックボックス” ドロップダウンに変更 -->
+        <div class="grid-2col">
+          <div class="stack">
+            <span class="label">職種</span>
+            <div id="catDD" class="multi-dd"></div>
+          </div>
+          <div class="stack">
+            <span class="label">働き方・特徴</span>
+            <div id="flagDD" class="multi-dd"></div>
+          </div>
+        </div>
 
-      <div class="section-caption">働き方・特徴</div>
-      <div class="row" id="flagsBox"></div>
+        <div class="grid-2col">
+          <label class="row center-left">
+            <input type="checkbox" id="f-open" checked>
+            <span>募集中のみ</span>
+          </label>
+          <label class="row center-left">
+            <input type="checkbox" id="favOnly">
+            <span>★お気に入りのみ</span>
+          </label>
+        </div>
 
-      <div class="row wrap mt-1">
-        <label class="chip"><input type="checkbox" hidden id="f-open" checked>募集中のみ</label>
-        <label class="chip"><input type="checkbox" hidden id="favOnly">★お気に入りのみ</label>
-        <label class="chip"><input type="checkbox" hidden id="intern3">在籍3人以上</label>
-        <label class="chip"><input type="checkbox" hidden id="intern10">在籍10人以上</label>
-        <label class="chip"><input type="checkbox" hidden id="intern20">在籍20人以上</label>
-      </div>
+        <div class="grid-2col">
+          <label>インターン生の在籍人数（下限）
+            <select id="internMin" class="input">
+              <option value="0">指定なし</option>
+              <option value="3">3人以上</option>
+              <option value="10">10人以上</option>
+              <option value="20">20人以上</option>
+            </select>
+          </label>
+          <label>ページサイズ
+            <select id="pageSize" class="input"><option>5</option><option selected>10</option><option>15</option><option>20</option></select>
+          </label>
+        </div>
 
-      <div class="row between mt-1">
-        <div class="meta" id="stat">0件</div>
-        <div class="row">
-          <select id="pageSize" class="input w90">
-            <option>5</option><option selected>10</option><option>15</option><option>20</option>
-          </select>
+        <div class="row gap-xs right">
           <button type="button" id="reset" class="btn">条件リセット</button>
         </div>
+      </form>
+
+      <div class="row between center" style="margin-top:var(--space)">
+        <div class="meta" id="stat">0件</div>
       </div>
 
-      <!-- カード（画像付き） -->
-      <div id="cards" class="grid gap-4 mt-3"></div>
-      <div id="pager" class="pager mt-2"></div>
+      <div id="cards" class="cards"></div>
+      <div id="pager" class="pager"></div>
     </section>
 
     <!-- 地域ナビ -->
     <section id="view-map" class="panel" style="display:none">
-      <h2 class="section-title-lg">地域ナビ</h2>
-      <div class="meta mb-2">都道府県→区市クリックで一覧へ反映</div>
+      <h2>地域ナビ</h2>
+      <p class="meta">都道府県→区市クリックで一覧へ反映</p>
       <div id="mapLinks" class="mapgrid"></div>
     </section>
 
     <!-- 人気ランキング -->
     <section id="view-ranking" class="panel" style="display:none">
-      <h2 class="section-title-lg">人気ランキング TOP20</h2>
-      <div class="meta">score = 応募×2 + ★ + PV</div>
-      <div id="rankbox" class="grid gap-2 mt-2"></div>
+      <h2>人気ランキング TOP20</h2>
+      <p class="meta">score = 応募×2 + ★ + PV</p>
+      <div id="rankbox" class="list-plain"></div>
     </section>
 
     <!-- 記事 -->
     <section id="view-articles" class="panel" style="display:none">
-      <h2 class="section-title-lg">記事/コンテンツ</h2>
-      <div class="row mb-2">
-        <select id="articleCat" class="input w180"><option value="">すべて</option></select>
+      <h2>記事/コンテンツ</h2>
+      <div class="filter-grid small">
+        <select id="articleCat" class="input"><option value="">すべて</option></select>
         <input id="articleQ" class="input" placeholder="記事を検索"/>
       </div>
-      <div id="articleList" class="grid gap-3"></div>
-      <article id="articleDetail" class="panel mt-3" style="display:none"></article>
+      <div id="articleList" class="cards slim"></div>
+      <article id="articleDetail" class="panel" style="display:none"></article>
     </section>
 
     <!-- 教育系 -->
     <section id="view-education" class="panel" style="display:none">
-      <h2 class="section-title-lg">教育系アルバイト</h2>
-      <div class="meta mb-2">jobType=educationのみ表示</div>
+      <h2>教育系アルバイト</h2>
       <div id="eduMount"></div>
     </section>
 
-    <!-- 採用担当者様（会社登録 + 掲載前編集） -->
+    <!-- 採用担当者様 -->
     <section id="view-employers" class="panel" style="display:none">
-      <h2 class="section-title-lg">採用担当者様</h2>
-      <p class="meta">会社情報の登録後、求人の掲載前編集（画像含む）を行えます。</p>
+      <h2>採用担当者様</h2>
+      <p class="meta">会社情報の登録後、求人の掲載前編集（画像含む）が行えます。</p>
 
-      <!-- 会社情報 -->
-      <form id="employerForm" class="grid gap-3 md:grid-cols-2">
-        <div class="panel">
+      <form id="employerForm" class="grid-2col">
+        <div class="panel soft">
           <label>会社名<input name="company" class="input" required placeholder="株式会社〇〇"/></label>
           <label>担当者名<input name="pic" class="input" required placeholder="山田 太郎"/></label>
           <label>担当者メール<input name="email" type="email" class="input" required placeholder="hr@example.com"/></label>
           <label>電話番号<input name="tel" class="input" placeholder="03-...."/></label>
-          <label>所在地（都道府県）<select name="pref" class="input">
-            <option value="">選択してください</option><option>東京都</option><option>神奈川県</option><option>大阪府</option><option>愛知県</option><option>福岡県</option>
-          </select></label>
-          <label>企業規模<select name="size" class="input">
-            <option value="">選択してください</option><option>〜10名</option><option>11〜50名</option><option>51〜200名</option><option>201〜1000名</option><option>1000名以上</option>
-          </select></label>
+          <label>所在地（都道府県）
+            <select name="pref" class="input">
+              <option value="">選択してください</option><option>東京都</option><option>神奈川県</option>
+              <option>大阪府</option><option>愛知県</option><option>福岡県</option>
+            </select>
+          </label>
+          <label>企業規模
+            <select name="size" class="input">
+              <option value="">選択してください</option><option>〜10名</option><option>11〜50名</option>
+              <option>51〜200名</option><option>201〜1000名</option><option>1000名以上</option>
+            </select>
+          </label>
         </div>
-        <div class="panel">
-          <label>業種<select name="industry" class="input">
-            <option value="">選択してください</option><option>IT・ソフトウェア</option><option>インターネット/メディア</option><option>コンサル</option>
-            <option>メーカー</option><option>金融</option><option>人材/教育</option><option>その他</option>
-          </select></label>
+        <div class="panel soft">
+          <label>業種
+            <select name="industry" class="input">
+              <option value="">選択してください</option><option>IT・ソフト</option><option>メディア</option>
+              <option>コンサル</option><option>メーカー</option><option>金融</option>
+              <option>人材/教育</option><option>その他</option>
+            </select>
+          </label>
           <label>自社サイトURL<input name="url" class="input" placeholder="https://..."/></label>
           <label>請求情報メモ<textarea name="billing" class="input" rows="3" placeholder="請求先名義/住所/支払サイトなど"></textarea></label>
-          <label class="row"><input type="checkbox" name="agree" required> 利用規約・プライバシーに同意する</label>
+          <label class="row center-left"><input type="checkbox" name="agree" required> <span>規約・プライバシーに同意</span></label>
           <div class="row right"><button type="button" id="saveEmployer" class="btn primary">会社情報を登録</button></div>
           <div class="meta" id="employerNote"></div>
         </div>
       </form>
 
-      <hr class="my-4"/>
+      <hr class="divider"/>
 
-      <!-- 求人／掲載前編集（画像対応） -->
       <div class="panel">
-        <div class="row between">
-          <h3 class="font-semibold">求人の掲載前編集</h3>
+        <div class="row between center">
+          <h3>求人の掲載前編集（ドラフト）</h3>
           <button type="button" id="openNewJob" class="btn">新規求人を作成</button>
         </div>
-        <div id="draftList" class="grid gap-2 mt-2"></div>
+        <div id="draftList" class="cards"></div>
       </div>
     </section>
 
-    <!-- 管理（応募一覧→承認/却下、求人の公開/停止） -->
+    <!-- 管理 -->
     <section id="view-admin" class="panel" style="display:none">
-      <h2 class="section-title-lg">管理</h2>
-      <div class="grid md:grid-cols-2 gap-4">
-        <div class="panel">
-          <h3 class="font-semibold mb-2">応募の承認フロー</h3>
-          <div id="adminApps" class="grid gap-2"></div>
+      <h2>管理（承認・公開）</h2>
+      <div class="grid-2col">
+        <div class="panel soft">
+          <h3>応募の承認</h3>
+          <div id="adminApps" class="list-plain"></div>
         </div>
-        <div class="panel">
-          <h3 class="font-semibold mb-2">求人の公開/停止</h3>
-          <div id="adminJobs" class="grid gap-2"></div>
+        <div class="panel soft">
+          <h3>ドラフトの公開</h3>
+          <div id="adminDrafts" class="cards slim"></div>
         </div>
       </div>
     </section>
 
     <!-- 法務/会社情報 -->
-    <section id="view-legal" class="panel" style="display:none">
-      <h2 class="section-title-lg">利用規約（デモ文）</h2>
-      <div class="legal">
-        会員登録、ID/パスワード管理、禁止事項、退会、サービス停止、免責、規約変更、準拠法/裁判管轄 等。
-        実運用時は自社の最新規約に差し替えてください。
-      </div>
-    </section>
-
-    <section id="view-privacy" class="panel" style="display:none">
-      <h2 class="section-title-lg">プライバシーポリシー（デモ文）</h2>
-      <div class="legal">
-        取得情報、利用目的、第三者提供、開示/訂正/利用停止、手数料（開示1件あたり1,000円）、問い合わせ窓口 等。
-        実運用時は自社の最新ポリシーに差し替えてください。
-      </div>
-    </section>
-
-    <section id="view-company" class="panel" style="display:none">
-      <h2 class="section-title-lg">会社情報</h2>
-      <ul class="list-disc pl-6">
-        <li>運営会社：株式会社Brotial（ダミー）</li>
-        <li>所在地：東京都〇〇区〇〇</li>
-      </ul>
-    </section>
+    <section id="view-legal" class="panel" style="display:none"><h2>利用規約</h2><div class="legal">…</div></section>
+    <section id="view-privacy" class="panel" style="display:none"><h2>プライバシーポリシー</h2><div class="legal">…</div></section>
+    <section id="view-company" class="panel" style="display:none"><h2>会社情報</h2><ul class="list"><li>株式会社Brotial（ダミー）</li></ul></section>
 
     <!-- アカウント -->
     <section id="view-account" class="panel" style="display:none">
-      <h2 class="section-title-lg">アカウント</h2>
-      <div id="acctBox" class="panel"></div>
+      <h2>アカウント</h2>
+      <div id="acctBox" class="panel soft"></div>
 
-      <h3 class="font-semibold">プロフィール（履歴書）</h3>
-      <form id="profileForm" class="grid gap-3 md:grid-cols-2">
-        <div class="panel">
+      <h3>プロフィール（履歴書）</h3>
+      <form id="profileForm" class="grid-2col">
+        <div class="panel soft">
           <label>名前<input class="input" name="name" placeholder="山田 太郎"/></label>
-          <label>大学/学校名<input class="input" name="school" placeholder="UT大学"/></label>
-          <label>学年/卒年<input class="input" name="grade" placeholder="B3 / 2027"/></label>
+          <label>大学/学校名>
+            <select class="input" name="school">
+              <option>東京大学</option><option>京都大学</option><option>早稲田大学</option>
+              <option>慶應義塾大学</option><option>一橋大学</option><option>大阪大学</option>
+              <option>神戸大学</option><option>その他</option>
+            </select>
+          </label>
+          <label>学年/卒年>
+            <select class="input" name="grade">
+              <option>B1</option><option>B2</option><option>B3</option><option>B4</option>
+              <option>M1</option><option>M2</option><option>D</option><option>既卒</option>
+            </select>
+          </label>
           <label>専攻<input class="input" name="major" placeholder="情報工学"/></label>
           <label>希望職種<input class="input" name="wishRole" placeholder="エンジニア / マーケ"/></label>
           <label>希望勤務地<input class="input" name="wishArea" placeholder="東京 / 関西 / リモート"/></label>
-          <label>希望時給<input class="input" name="wishWage" placeholder="1500〜"/></label>
+          <label>希望時給>
+            <select class="input" name="wishWage">
+              <option>1200円〜</option><option>1500円〜</option><option>2000円〜</option><option>2500円〜</option>
+            </select>
+          </label>
         </div>
-        <div class="panel">
-          <label>就業可能日数<input class="input" name="days" placeholder="週3〜"/></label>
-          <label>スキルタグ（カンマ区切り）<input class="input" name="skills" placeholder="Go, React, SQL"/></label>
+        <div class="panel soft">
+          <label>就業可能日数>
+            <select class="input" name="days">
+              <option>週2〜</option><option>週3〜</option><option>週4〜</option>
+            </select>
+          </label>
+          <label>スキルタグ<input class="input" name="skills" placeholder="Go, React, SQL"/></label>
           <label>SNS / ポートフォリオURL<input class="input" name="links" placeholder="https://..."/></label>
           <label>自己PR<textarea class="input" name="bio" rows="6" placeholder="強み・経験・関心など"></textarea></label>
           <label>顔写真（任意）<input class="input" name="avatar" type="file" accept="image/*"/></label>
-          <div class="row">
-            <img id="avatarPreview" alt="" class="w-16 h-16 rounded-full object-cover border border-[#dfe7ff] hidden"/>
+          <div class="row center-left gap-xs">
+            <img id="avatarPreview" alt="" class="avatar hidden"/>
             <button type="button" id="saveProfile" class="btn primary">保存</button>
           </div>
         </div>
       </form>
 
-      <h3 class="font-semibold mt-3">あなたの活動記録</h3>
-      <div id="activityBox" class="panel"></div>
-      <div class="meta mt-2">※ データは自動でスプレッドシートに同期されます。</div>
+      <h3>あなたの活動記録</h3>
+      <div id="activityBox" class="panel soft"></div>
+      <div class="meta">※ データは自動でスプレッドシートに同期されます。</div>
     </section>
   </main>
 
   <!-- モーダル/トースト -->
-  <div id="modal" class="modal">
-    <div class="panel box w-[min(680px,92vw)]">
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="modal-box">
       <div id="modalBody"></div>
-      <div class="row right mt-3"><button type="button" class="btn" id="modalClose">閉じる</button></div>
+      <div class="row right"><button type="button" class="btn" id="modalClose">閉じる</button></div>
     </div>
   </div>
   <div id="toast" class="toast">OK</div>
 
-  <!-- アプリ -->
   <script src="./app.js" defer></script>
 </body>
 </html>
